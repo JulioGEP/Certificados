@@ -1,0 +1,102 @@
+:root {
+  --brand-primary: #2c5cc5;
+  --brand-secondary: #f4f6fb;
+  --brand-radius: 1rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Poppins", sans-serif;
+  background-color: var(--brand-secondary);
+  color: #1f274d;
+  min-height: 100vh;
+}
+
+.page-wrapper {
+  min-height: 100vh;
+}
+
+.hero-section {
+  background: linear-gradient(135deg, rgba(44, 92, 197, 0.12), rgba(44, 92, 197, 0));
+}
+
+.text-bg-primary-soft {
+  background-color: rgba(44, 92, 197, 0.1) !important;
+  color: var(--brand-primary) !important;
+  border: 1px solid rgba(44, 92, 197, 0.25);
+}
+
+.card {
+  border-radius: var(--brand-radius);
+}
+
+.table thead th {
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.table tbody tr td {
+  vertical-align: middle;
+  background-color: #ffffff;
+}
+
+.table tbody tr + tr td {
+  border-top: 1px solid rgba(31, 39, 77, 0.08);
+}
+
+.table tbody td .form-control,
+.table tbody td .form-control:focus {
+  border: none;
+  box-shadow: none;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.table tbody td .form-control {
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.table tbody td .form-control:focus {
+  background-color: rgba(44, 92, 197, 0.08);
+}
+
+.table tbody td .document-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.document-badge {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.btn {
+  border-radius: 999px;
+}
+
+#table-body tr.empty-state td {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #6c757d;
+  font-size: 1rem;
+}
+
+@media (max-width: 991.98px) {
+  .card-body {
+    padding: 2rem;
+  }
+
+  .table-responsive {
+    border-radius: 1rem;
+  }
+
+  .table tbody td .form-control {
+    min-width: 10rem;
+  }
+}

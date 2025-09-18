@@ -1,0 +1,11 @@
+[build]
+  publish = "public"
+  command = ""
+
+[dev]
+  publish = "public"
+  functions = "netlify/functions"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
