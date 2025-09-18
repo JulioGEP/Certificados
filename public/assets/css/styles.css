@@ -150,6 +150,18 @@ body {
   pointer-events: none;
 }
 
+.table tbody tr:last-child td[data-tooltip]:hover::after,
+.table tbody tr:last-child td[data-tooltip]:focus-within::after {
+  top: auto;
+  bottom: calc(100% + 0.5rem);
+}
+
+.table tbody tr:last-child td[data-tooltip]:hover::before,
+.table tbody tr:last-child td[data-tooltip]:focus-within::before {
+  top: auto;
+  bottom: calc(100% + 0.25rem);
+}
+
 .table tbody td .document-wrapper {
   display: flex;
   align-items: center;
