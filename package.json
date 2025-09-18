@@ -1,0 +1,20 @@
+{
+  "name": "certificados",
+  "version": "0.1.0",
+  "description": "Generador de certificados de formaciones para GEP Group",
+  "main": "index.js",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "netlify build",
+    "test": "echo \"No hay pruebas configuradas\" && exit 0"
+  },
+  "keywords": [
+    "certificados",
+    "gep-group",
+    "netlify",
+    "pipedrive"
+  ],
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs"
+}
