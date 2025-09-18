@@ -370,14 +370,147 @@ function extractStudentsFromNotes(notes) {
       const [name = '', surname = '', document = ''] = rawParts;
 
       return {
-        name,
-        surname,
+        name: normalisePersonNameSegment(name),
+        surname: normalisePersonNameSegment(surname),
         document,
         documentType: detectDocumentType(document)
       };
     })
     .filter(Boolean);
 }
+
+function normalisePersonNameSegment(value) {
+  if (!value) return '';
+
+  const repaired = repairEncodingArtifacts(String(value));
+  const cleaned = repaired
+    .replace(/[\u2018\u2019\u0060]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[^\p{L}\p{M}\s'\-]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!cleaned) {
+    return '';
+  }
+
+  const corrected = applyNameCorrections(cleaned);
+  return corrected.toLocaleUpperCase('es-ES');
+}
+
+function applyNameCorrections(value) {
+  return value.replace(/\p{L}+/gu, (match) => {
+    const key = match.toLocaleUpperCase('es-ES');
+    if (NAME_CORRECTIONS.has(key)) {
+      return NAME_CORRECTIONS.get(key);
+    }
+    return match;
+  });
+}
+
+function repairEncodingArtifacts(value) {
+  let output = value;
+
+  if (/[ÃÂ]/.test(output)) {
+    try {
+      const decoded = Buffer.from(output, 'latin1').toString('utf8');
+      if (!decoded.includes('�')) {
+        output = decoded;
+      }
+    } catch (error) {
+      // Ignoramos el error y continuamos con las sustituciones manuales.
+    }
+  }
+
+  ENCODING_REPLACEMENTS.forEach(({ pattern, replacement }) => {
+    output = output.replace(pattern, replacement);
+  });
+
+  return output;
+}
+
+const NAME_CORRECTIONS = new Map([
+  ['JOSE', 'JOSÉ'],
+  ['MARIA', 'MARÍA'],
+  ['ANDRES', 'ANDRÉS'],
+  ['ANGEL', 'ÁNGEL'],
+  ['ANGELA', 'ÁNGELA'],
+  ['JESUS', 'JESÚS'],
+  ['RAUL', 'RAÚL'],
+  ['JULIAN', 'JULIÁN'],
+  ['MARTIN', 'MARTÍN'],
+  ['ADRIAN', 'ADRIÁN'],
+  ['RUBEN', 'RUBÉN'],
+  ['AARON', 'AARÓN'],
+  ['ALVARO', 'ÁLVARO'],
+  ['IVAN', 'IVÁN'],
+  ['OSCAR', 'ÓSCAR'],
+  ['VICTOR', 'VÍCTOR'],
+  ['ROCIO', 'ROCÍO'],
+  ['MONICA', 'MÓNICA'],
+  ['VERONICA', 'VERÓNICA'],
+  ['SOFIA', 'SOFÍA'],
+  ['LUCIA', 'LUCÍA'],
+  ['ANAIS', 'ANAÏS'],
+  ['INIGO', 'ÍÑIGO'],
+  ['NOEMI', 'NOEMÍ'],
+  ['NEREA', 'NEREA'],
+  ['PAULA', 'PAULA'],
+  ['MUNOZ', 'MUÑOZ'],
+  ['NUNEZ', 'NUÑEZ'],
+  ['PENA', 'PEÑA'],
+  ['CANETE', 'CAÑETE'],
+  ['CANEDO', 'CAÑEDO'],
+  ['PINEIRO', 'PIÑEIRO'],
+  ['PINERO', 'PIÑERO'],
+  ['SANCHEZ', 'SÁNCHEZ'],
+  ['GONZALEZ', 'GONZÁLEZ'],
+  ['MARTINEZ', 'MARTÍNEZ'],
+  ['HERNANDEZ', 'HERNÁNDEZ'],
+  ['ALVAREZ', 'ÁLVAREZ'],
+  ['FERNANDEZ', 'FERNÁNDEZ'],
+  ['JIMENEZ', 'JIMÉNEZ'],
+  ['GOMEZ', 'GÓMEZ'],
+  ['LOPEZ', 'LÓPEZ'],
+  ['RODRIGUEZ', 'RODRÍGUEZ'],
+  ['RAMIREZ', 'RAMÍREZ'],
+  ['BENITEZ', 'BENÍTEZ'],
+  ['VELAZQUEZ', 'VELÁZQUEZ'],
+  ['VALDES', 'VALDÉS'],
+  ['SUAREZ', 'SUÁREZ'],
+  ['PEREZ', 'PÉREZ'],
+  ['DOMINGUEZ', 'DOMÍNGUEZ'],
+  ['MENDEZ', 'MÉNDEZ'],
+  ['GUTIERREZ', 'GUTIÉRREZ'],
+  ['VASQUEZ', 'VÁSQUEZ'],
+  ['ESPANA', 'ESPAÑA'],
+  ['CASTANO', 'CASTAÑO'],
+  ['MALAGA', 'MÁLAGA'],
+  ['CORDOBA', 'CÓRDOBA'],
+  ['LEON', 'LEÓN'],
+  ['AVILA', 'ÁVILA']
+]);
+
+const ENCODING_REPLACEMENTS = [
+  { pattern: /\u00C3\u00A1/g, replacement: 'á' },
+  { pattern: /\u00C3\u0081/g, replacement: 'Á' },
+  { pattern: /\u00C3\u00A9/g, replacement: 'é' },
+  { pattern: /\u00C3\u0089/g, replacement: 'É' },
+  { pattern: /\u00C3\u00AD/g, replacement: 'í' },
+  { pattern: /\u00C3\u008D/g, replacement: 'Í' },
+  { pattern: /\u00C3\u00B3/g, replacement: 'ó' },
+  { pattern: /\u00C3\u0093/g, replacement: 'Ó' },
+  { pattern: /\u00C3\u00BA/g, replacement: 'ú' },
+  { pattern: /\u00C3\u009A/g, replacement: 'Ú' },
+  { pattern: /\u00C3\u00BC/g, replacement: 'ü' },
+  { pattern: /\u00C3\u009C/g, replacement: 'Ü' },
+  { pattern: /\u00C3\u00B1/g, replacement: 'ñ' },
+  { pattern: /\u00C3\u0091/g, replacement: 'Ñ' },
+  { pattern: /\u00C2\u00B4/g, replacement: '' },
+  { pattern: /\u00C2\u00A8/g, replacement: '' },
+  { pattern: /\u00C2\u00BA/g, replacement: 'º' },
+  { pattern: /\u00C2\u00AA/g, replacement: 'ª' }
+];
 
 function sanitiseNoteContent(content) {
   if (!content) return '';
