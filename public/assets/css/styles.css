@@ -27,7 +27,8 @@ body {
   max-width: 260px;
   width: 100%;
   height: auto;
-  margin: 1.5rem auto 1rem;
+  display: block;
+  margin: 1.5rem auto;
 }
 
 .hero-title {
