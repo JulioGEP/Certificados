@@ -24,9 +24,16 @@ body {
 }
 
 .hero-logo {
-  max-width: 320px;
+  max-width: 260px;
   width: 100%;
   height: auto;
+  margin: 1.5rem auto 1rem;
+}
+
+.hero-title {
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-weight: 600;
+  color: #1f274d;
 }
 
 .text-bg-primary-soft {
