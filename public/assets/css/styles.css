@@ -33,6 +33,19 @@ body {
   border-radius: var(--brand-radius);
 }
 
+.budget-card {
+  max-width: 42rem;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.budget-card .form-control-lg,
+.budget-card .btn-lg {
+  font-size: 1rem;
+  padding: 0.75rem 1rem;
+}
+
 .table thead th {
   font-weight: 600;
   letter-spacing: 0.08em;

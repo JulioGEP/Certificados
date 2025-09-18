@@ -339,7 +339,7 @@
       buttonText.textContent = 'Cargando';
     } else {
       spinner.classList.add('d-none');
-      buttonText.textContent = 'Rellenar';
+      buttonText.textContent = 'Añadir Alumno/s';
     }
   }
 

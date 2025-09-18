@@ -89,7 +89,7 @@ Define las siguientes variables en tu proyecto de Netlify (UI o `netlify env:set
 
 ## Flujo de datos
 
-1. **Formulario**: el usuario introduce el número de presupuesto y pulsa “Rellenar”.
+1. **Formulario**: el usuario introduce el número de presupuesto y pulsa “Añadir Alumno/s”.
 2. **Función serverless**: se llama a `/.netlify/functions/fetch-deal?dealId=<ID>`.
 3. **Consulta a Pipedrive**:
    - Recupera los datos del deal.
