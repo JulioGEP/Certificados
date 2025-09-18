@@ -111,6 +111,45 @@ body {
   background-color: rgba(44, 92, 197, 0.08);
 }
 
+.table tbody td[data-tooltip] {
+  position: relative;
+}
+
+.table tbody td[data-tooltip]:hover::after,
+.table tbody td[data-tooltip]:focus-within::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 0.5rem);
+  transform: translateX(-50%);
+  background-color: #1f274d;
+  color: #ffffff;
+  padding: 0.35rem 0.65rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  box-shadow: 0 8px 18px rgba(31, 39, 77, 0.2);
+  max-width: min(240px, 85vw);
+  white-space: normal;
+  text-align: center;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.table tbody td[data-tooltip]:hover::before,
+.table tbody td[data-tooltip]:focus-within::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 0.25rem);
+  transform: translateX(-50%) rotate(45deg);
+  width: 0.6rem;
+  height: 0.6rem;
+  background-color: #1f274d;
+  z-index: 9;
+  pointer-events: none;
+}
+
 .table tbody td .document-wrapper {
   display: flex;
   align-items: center;

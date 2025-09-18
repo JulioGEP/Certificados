@@ -100,12 +100,19 @@
       TABLE_COLUMNS.forEach((column) => {
         const td = document.createElement('td');
         td.dataset.label = column.label;
+        const tooltipText = column.placeholder || column.label;
+        if (tooltipText) {
+          td.dataset.tooltip = tooltipText;
+        }
 
         if (column.field === 'dni') {
           const wrapper = document.createElement('div');
           wrapper.className = 'document-wrapper';
 
           const input = createInput(column, row[column.field], index);
+          if (tooltipText) {
+            input.title = tooltipText;
+          }
           const badge = document.createElement('span');
           badge.className = 'badge rounded-pill text-bg-info-subtle document-badge';
           updateDocumentBadge(badge, row.documentType);
@@ -123,6 +130,9 @@
           td.appendChild(wrapper);
         } else {
           const input = createInput(column, row[column.field], index);
+          if (tooltipText) {
+            input.title = tooltipText;
+          }
           input.addEventListener('input', (event) => {
             updateRowValue(index, column.field, event.target.value);
           });
@@ -154,6 +164,9 @@
     input.type = column.type === 'number' ? 'number' : column.type;
     input.placeholder = column.placeholder || '';
     input.value = column.type === 'date' ? normaliseDateValue(value) : value || '';
+    if (column.label) {
+      input.setAttribute('aria-label', column.label);
+    }
     if (column.type === 'number') {
       input.min = '0';
       input.step = '0.5';
