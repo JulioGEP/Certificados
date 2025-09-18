@@ -223,16 +223,30 @@
       return;
     }
 
+    const { existingDealIds, newDealIds } = splitDealIdsByExistingState(dealIds);
+
+    if (existingDealIds.length > 0) {
+      const joinedIds = existingDealIds.join(', ');
+      const label = existingDealIds.length > 1 ? 'Los presupuestos' : 'El presupuesto';
+      const suffix = existingDealIds.length > 1 ? 'ya están añadidos' : 'ya está añadido';
+      showAlert('warning', `${label} ${joinedIds} ${suffix} en el listado.`);
+    }
+
+    if (!newDealIds.length) {
+      elements.budgetInput.focus();
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const results = await Promise.allSettled(dealIds.map((dealId) => fetchBudgetData(dealId)));
+      const results = await Promise.allSettled(newDealIds.map((dealId) => fetchBudgetData(dealId)));
 
       const successfulDeals = [];
       const failedDeals = [];
 
       results.forEach((result, index) => {
-        const dealId = dealIds[index];
+        const dealId = newDealIds[index];
         if (result.status === 'fulfilled') {
           successfulDeals.push(dealId);
           addDealToTable(dealId, result.value);
@@ -280,6 +294,33 @@
       .map((segment) => segment.trim())
       .filter((segment) => segment.length > 0);
     return Array.from(new Set(segments));
+  }
+
+  function splitDealIdsByExistingState(dealIds) {
+    return dealIds.reduce(
+      (acc, dealId) => {
+        if (isDealAlreadyInState(dealId)) {
+          acc.existingDealIds.push(dealId);
+        } else {
+          acc.newDealIds.push(dealId);
+        }
+        return acc;
+      },
+      { existingDealIds: [], newDealIds: [] }
+    );
+  }
+
+  function isDealAlreadyInState(dealId) {
+    const normalisedDealId = normaliseDealId(dealId);
+    if (!normalisedDealId) return false;
+    return state.rows.some((row) => normaliseDealId(row.presupuesto) === normalisedDealId);
+  }
+
+  function normaliseDealId(value) {
+    if (value === undefined || value === null) {
+      return '';
+    }
+    return String(value).trim().toLowerCase();
   }
 
   async function fetchBudgetData(dealId) {
