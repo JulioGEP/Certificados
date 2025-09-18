@@ -216,34 +216,94 @@
 
   async function handleBudgetSubmit(event) {
     event.preventDefault();
-    const dealId = elements.budgetInput.value.trim();
+    const dealIds = getBudgetIdsFromInput(elements.budgetInput.value);
 
-    if (!dealId) {
-      showAlert('warning', 'Introduce un número de presupuesto válido.');
+    if (!dealIds.length) {
+      showAlert('warning', 'Introduce uno o varios números de presupuesto válidos separados por comas.');
       return;
     }
 
     setLoading(true);
 
     try {
+      const results = await Promise.allSettled(dealIds.map((dealId) => fetchBudgetData(dealId)));
+
+      const successfulDeals = [];
+      const failedDeals = [];
+
+      results.forEach((result, index) => {
+        const dealId = dealIds[index];
+        if (result.status === 'fulfilled') {
+          successfulDeals.push(dealId);
+          addDealToTable(dealId, result.value);
+        } else {
+          const message = result.reason && result.reason.message ? result.reason.message : 'No se ha podido recuperar la información del presupuesto.';
+          const erroredDealId = (result.reason && result.reason.dealId) || dealId;
+          const logMessage = erroredDealId
+            ? `No se ha podido recuperar la información del presupuesto ${erroredDealId}`
+            : 'No se ha podido recuperar la información del presupuesto';
+          console.error(logMessage, result.reason);
+          failedDeals.push({ dealId: erroredDealId, message });
+        }
+      });
+
+      if (successfulDeals.length > 0) {
+        const joinedIds = successfulDeals.join(', ');
+        const label = successfulDeals.length > 1 ? 'los presupuestos' : 'el presupuesto';
+        showAlert('success', `Información de ${label} ${joinedIds} añadida correctamente.`);
+        elements.budgetInput.value = '';
+        elements.budgetInput.focus();
+      }
+
+      if (failedDeals.length > 0) {
+        const joinedIds = failedDeals
+          .map((item) => item.dealId)
+          .filter(Boolean)
+          .join(', ');
+        const label = failedDeals.length > 1 ? 'los presupuestos' : 'el presupuesto';
+        const detail = failedDeals[0].message || 'No se ha podido recuperar la información solicitada.';
+        const suffix = joinedIds ? ` ${joinedIds}` : '';
+        showAlert('danger', `No se ha podido recuperar la información de ${label}${suffix}. ${detail}`);
+      }
+    } catch (error) {
+      console.error(error);
+      showAlert('danger', 'Ha ocurrido un error al recuperar la información de los presupuestos. Inténtalo de nuevo.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function getBudgetIdsFromInput(rawValue) {
+    if (!rawValue) return [];
+    const segments = rawValue
+      .split(',')
+      .map((segment) => segment.trim())
+      .filter((segment) => segment.length > 0);
+    return Array.from(new Set(segments));
+  }
+
+  async function fetchBudgetData(dealId) {
+    try {
       const response = await fetch(`/.netlify/functions/fetch-deal?dealId=${encodeURIComponent(dealId)}`);
       const payload = await response.json();
 
       if (!response.ok || payload.success === false) {
         const message = payload && payload.message ? payload.message : 'No se ha podido recuperar la información del presupuesto.';
-        showAlert('danger', message);
-        return;
+        const error = new Error(message);
+        error.dealId = dealId;
+        throw error;
       }
 
-      addDealToTable(dealId, payload.data);
-      elements.budgetInput.value = '';
-      elements.budgetInput.focus();
-      showAlert('success', `Información del presupuesto ${dealId} añadida correctamente.`);
+      return payload.data;
     } catch (error) {
-      console.error(error);
-      showAlert('danger', 'Ha ocurrido un error al conectar con el servicio. Inténtalo de nuevo.');
-    } finally {
-      setLoading(false);
+      const enrichedError = error instanceof Error ? error : new Error('Ha ocurrido un error al recuperar la información del presupuesto.');
+      if (!enrichedError.message || enrichedError.message === 'Failed to fetch') {
+        enrichedError.message = 'Ha ocurrido un error al conectar con el servicio. Inténtalo de nuevo.';
+      }
+      if (!enrichedError.dealId) {
+        enrichedError.dealId = dealId;
+      }
+      throw enrichedError;
     }
   }
 
