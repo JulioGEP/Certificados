@@ -13,19 +13,27 @@
   ];
 
   const OPEN_TRAINING_DURATION_ENTRIES = [
+    ['Pack Emergencias', '6'],
+    ['Trabajos en Altura', '8'],
+    ['Trabajos Verticales', '12'],
     ['Carretilla elevadora', '8'],
-    ['Carretilla elevadora frontal', '6'],
-    ['Espacios confinados TELCO', '6'],
-    ['Formación para Jefes de emergencia y jefes de intervención', '8'],
-    ['Formaciones TELCO', '6'],
-    ['Operaciones TELCO', '6'],
-    ['Pack Emergencias (PAUX + EI)', '6'],
-    ['Riesgo eléctrico TELCO', '6'],
-    ['SVB y DEA (acreditación oficial)', '6'],
-    ['Trabajos en altura', '8'],
-    ['Trabajos en altura TELCO 1', '6'],
-    ['Trabajos en espacios confinados', '8'],
-    ['Trabajos verticales', '12']
+    ['Espacios Confinados', '8'],
+    ['Operaciones Telco', '6'],
+    ['Riesgo Eléctrico Telco', '6'],
+    ['Espacios Confinados Telco', '6'],
+    ['Trabajos en altura Telco', '6'],
+    ['Basico de Fuego', '4'],
+    ['Avanzado de Fuego', '5'],
+    ['Avanzado y Casa de Humo', '6'],
+    ['Riesgo Químico', '4'],
+    ['Primeros Auxilios', '4'],
+    ['SVD y DEA', '6'],
+    ['Implantación de PAU', '6'],
+    ['Jefes de Emergencias', '8'],
+    ['Curso de ERA\'s', '8'],
+    ['Andamios', '8'],
+    ['Renovación Bombero de Empresa', '20'],
+    ['Bombero de Empresa Inicial', '350']
   ];
 
   const TRAINING_DURATION_LOOKUP = OPEN_TRAINING_DURATION_ENTRIES.reduce((lookup, [name, hours]) => {
