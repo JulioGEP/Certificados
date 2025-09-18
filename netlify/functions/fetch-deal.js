@@ -218,14 +218,23 @@ function extractStudentsFromNotes(notes) {
     .map((entry) => entry.trim())
     .filter(Boolean)
     .map((entry) => {
-      const parts = entry.split('|').map((part) => part.trim()).filter(Boolean);
+      const rawParts = entry.split('|').map((part) => part.trim());
+      const hasContent = rawParts.some((part) => part);
+
+      if (!hasContent) {
+        return null;
+      }
+
+      const [name = '', surname = '', document = ''] = rawParts;
+
       return {
-        name: parts[0] || '',
-        surname: parts[1] || '',
-        document: parts[2] || '',
-        documentType: detectDocumentType(parts[2] || '')
+        name,
+        surname,
+        document,
+        documentType: detectDocumentType(document)
       };
-    });
+    })
+    .filter(Boolean);
 }
 
 function sanitiseNoteContent(content) {
