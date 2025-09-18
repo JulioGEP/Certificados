@@ -12,6 +12,11 @@
     { field: 'formacion', label: 'Formación', type: 'text', placeholder: 'Título de la formación' }
   ];
 
+  const TABLE_COLUMN_LOOKUP = TABLE_COLUMNS.reduce((lookup, column) => {
+    lookup.set(column.field, column);
+    return lookup;
+  }, new Map());
+
   const OPEN_TRAINING_DURATION_ENTRIES = [
     ['Carretilla elevadora', '8'],
     ['Carretilla elevadora frontal', '6'],
@@ -133,19 +138,12 @@
       TABLE_COLUMNS.forEach((column) => {
         const td = document.createElement('td');
         td.dataset.label = column.label;
-        const tooltipText = column.placeholder || column.label;
-        if (tooltipText) {
-          td.dataset.tooltip = tooltipText;
-        }
 
         if (column.field === 'dni') {
           const wrapper = document.createElement('div');
           wrapper.className = 'document-wrapper';
 
           const input = createInput(column, row[column.field], index);
-          if (tooltipText) {
-            input.title = tooltipText;
-          }
           const badge = document.createElement('span');
           badge.className = 'badge rounded-pill text-bg-info-subtle document-badge';
           updateDocumentBadge(badge, row.documentType);
@@ -153,6 +151,7 @@
           input.addEventListener('input', (event) => {
             const value = event.target.value;
             updateRowValue(index, 'dni', value);
+            updateCellTooltip(td, input, column, value);
             const documentType = detectDocumentType(value);
             updateRowValue(index, 'documentType', documentType);
             updateDocumentBadge(badge, documentType);
@@ -161,18 +160,26 @@
           wrapper.appendChild(input);
           wrapper.appendChild(badge);
           td.appendChild(wrapper);
+          updateCellTooltip(td, input, column, input.value);
         } else {
           const input = createInput(column, row[column.field], index);
-          if (tooltipText) {
-            input.title = tooltipText;
-          }
           input.addEventListener('input', (event) => {
-            updateRowValue(index, column.field, event.target.value);
+            const { value } = event.target;
+            updateRowValue(index, column.field, value);
+            updateCellTooltip(td, input, column, value);
             if (column.field === 'formacion') {
               applyTrainingDuration(index, event.target.value);
             }
           });
+          if (column.field === 'fecha') {
+            input.addEventListener('change', (event) => {
+              const { value } = event.target;
+              updateRowValue(index, column.field, value);
+              updateCellTooltip(td, input, column, value);
+            });
+          }
           td.appendChild(input);
+          updateCellTooltip(td, input, column, input.value);
         }
 
         tr.appendChild(td);
@@ -194,6 +201,45 @@
     updateClearButtonState();
   }
 
+  function resolveTooltipText(column, rawValue) {
+    if (!column) {
+      return '';
+    }
+
+    if (column.type === 'date') {
+      const normalisedDate = normaliseDateValue(rawValue);
+      if (normalisedDate) {
+        return normalisedDate;
+      }
+    }
+
+    if (rawValue === undefined || rawValue === null) {
+      return column.placeholder || '';
+    }
+
+    const value = typeof rawValue === 'string' ? rawValue.trim() : String(rawValue).trim();
+    if (value !== '') {
+      return value;
+    }
+
+    return column.placeholder || '';
+  }
+
+  function updateCellTooltip(cell, input, column, rawValue) {
+    if (!cell || !input) {
+      return;
+    }
+
+    const tooltipText = resolveTooltipText(column, rawValue);
+    if (tooltipText) {
+      cell.dataset.tooltip = tooltipText;
+      input.title = tooltipText;
+    } else {
+      delete cell.dataset.tooltip;
+      input.removeAttribute('title');
+    }
+  }
+
   function createInput(column, value, index) {
     const input = document.createElement('input');
     input.className = 'form-control';
@@ -209,12 +255,6 @@
       input.min = '0';
       input.step = '0.5';
       input.inputMode = 'decimal';
-    }
-
-    if (column.field === 'fecha') {
-      input.addEventListener('change', (event) => {
-        updateRowValue(index, 'fecha', event.target.value);
-      });
     }
 
     return input;
@@ -495,6 +535,11 @@
     );
     if (durationInput && durationInput.value !== duration) {
       durationInput.value = duration;
+      const durationCell = durationInput.closest('td');
+      const durationColumn = TABLE_COLUMN_LOOKUP.get('duracion');
+      if (durationCell && durationColumn) {
+        updateCellTooltip(durationCell, durationInput, durationColumn, duration);
+      }
     }
   }
 
