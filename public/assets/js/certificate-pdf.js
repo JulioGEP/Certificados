@@ -233,6 +233,41 @@
     return docDefinition;
   }
 
+  function triggerDownload(blob, fileName) {
+    if (typeof Blob !== 'undefined' && !(blob instanceof Blob)) {
+      throw new Error('No se ha podido generar el archivo PDF.');
+    }
+
+    const { document: doc, URL: urlApi, navigator } = global;
+
+    if (!blob) {
+      throw new Error('El certificado generado está vacío.');
+    }
+
+    if (navigator && typeof navigator.msSaveOrOpenBlob === 'function') {
+      navigator.msSaveOrOpenBlob(blob, fileName);
+      return;
+    }
+
+    if (!doc || !urlApi || typeof urlApi.createObjectURL !== 'function') {
+      throw new Error('El navegador no soporta la descarga automática de archivos.');
+    }
+
+    const downloadUrl = urlApi.createObjectURL(blob);
+    const link = doc.createElement('a');
+    link.href = downloadUrl;
+    link.download = fileName;
+    link.rel = 'noopener';
+    link.style.display = 'none';
+    doc.body.appendChild(link);
+    link.click();
+    doc.body.removeChild(link);
+
+    setTimeout(() => {
+      urlApi.revokeObjectURL(downloadUrl);
+    }, 0);
+  }
+
   async function generateCertificate(row) {
     if (!global.pdfMake || typeof global.pdfMake.createPdf !== 'function') {
       throw new Error('pdfMake no está disponible.');
@@ -241,8 +276,23 @@
     const fileName = buildFileName(row || {});
 
     return new Promise((resolve, reject) => {
+      let pdfDocument;
       try {
-        global.pdfMake.createPdf(docDefinition).download(fileName, () => resolve({ fileName }));
+        pdfDocument = global.pdfMake.createPdf(docDefinition);
+      } catch (error) {
+        reject(error);
+        return;
+      }
+
+      try {
+        pdfDocument.getBlob((blob) => {
+          try {
+            triggerDownload(blob, fileName);
+            resolve({ fileName });
+          } catch (error) {
+            reject(error);
+          }
+        });
       } catch (error) {
         reject(error);
       }
