@@ -9,6 +9,8 @@ const HEADERS = {
 };
 
 const fieldOptionsCache = new Map();
+let cachedDealFields = null;
+let dealFieldsPromise = null;
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -250,8 +252,14 @@ async function fetchDealFieldOptions(baseUrl, apiToken, fieldKey) {
   }
 
   try {
-    const fieldResponse = await pipedriveRequest(baseUrl, apiToken, `/dealFields/${fieldKey}`);
-    const options = Array.isArray(fieldResponse?.data?.options) ? fieldResponse.data.options : [];
+    const allFields = await fetchAllDealFields(baseUrl, apiToken);
+    const match = allFields.find((field) => {
+      if (!field) return false;
+      const fieldId = field.id !== undefined ? String(field.id) : null;
+      return field.key === fieldKey || fieldId === String(fieldKey);
+    });
+
+    const options = Array.isArray(match?.options) ? match.options : [];
     fieldOptionsCache.set(fieldKey, options);
     return options;
   } catch (error) {
@@ -259,6 +267,48 @@ async function fetchDealFieldOptions(baseUrl, apiToken, fieldKey) {
     fieldOptionsCache.set(fieldKey, []);
     return [];
   }
+}
+
+async function fetchAllDealFields(baseUrl, apiToken) {
+  if (cachedDealFields) {
+    return cachedDealFields;
+  }
+
+  if (dealFieldsPromise) {
+    return dealFieldsPromise;
+  }
+
+  dealFieldsPromise = (async () => {
+    try {
+      const response = await pipedriveRequest(baseUrl, apiToken, '/dealFields', {
+        start: 0,
+        limit: 500
+      });
+
+      const fields = Array.isArray(response?.data) ? response.data : [];
+      cachedDealFields = fields;
+
+      fields.forEach((field) => {
+        const options = Array.isArray(field?.options) ? field.options : [];
+        if (field?.key) {
+          fieldOptionsCache.set(field.key, options);
+        }
+        if (field?.id !== undefined) {
+          fieldOptionsCache.set(String(field.id), options);
+        }
+      });
+
+      return fields;
+    } catch (error) {
+      console.error('No se ha podido recuperar el listado de campos de deal', error);
+      cachedDealFields = null;
+      throw error;
+    } finally {
+      dealFieldsPromise = null;
+    }
+  })();
+
+  return dealFieldsPromise;
 }
 
 function mapTrainingLocation(rawLocation) {
