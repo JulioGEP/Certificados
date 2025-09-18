@@ -21,20 +21,15 @@
   </head>
   <body>
     <main class="page-wrapper">
-      <section class="hero-section py-5">
+      <section class="hero-section">
         <div class="container">
-          <div class="row justify-content-center text-center">
-            <div class="col-lg-8">
-              <div class="badge rounded-pill text-bg-primary-soft mb-3">
-                GEP Group · Certificados
-              </div>
-              <img
-                src="assets/GEP-Group_Logotipo_horizontal.png"
-                alt="Logotipo GEP Group"
-                class="hero-logo"
-              />
-              <h1 class="hero-title">Certificados Formación Abierta</h1>
-            </div>
+          <div class="hero-header">
+            <img
+              src="assets/GEP-Group_Logotipo_horizontal.png"
+              alt="Logotipo GEP Group"
+              class="hero-logo"
+            />
+            <h1 class="hero-title">Certificados Formación Abierta</h1>
           </div>
         </div>
       </section>
@@ -43,8 +38,8 @@
         <div class="container">
           <div id="alert-container" class="mb-4" aria-live="polite"></div>
 
-          <div class="card border-0 shadow-sm mb-4">
-            <div class="card-body p-4 p-lg-5">
+          <div class="card border-0 shadow-sm mb-4 budget-card">
+            <div class="card-body">
               <form id="budget-form" class="row g-3 align-items-end">
                 <div class="col-lg-8">
                   <label for="budget-input" class="form-label fw-medium"
@@ -52,7 +47,7 @@
                   >
                   <input
                     type="text"
-                    class="form-control form-control-lg"
+                    class="form-control"
                     id="budget-input"
                     name="budget"
                     placeholder="ejemplo: 6574,6456,7366,etc...!"
@@ -63,7 +58,7 @@
                 <div class="col-lg-4">
                   <button
                     type="submit"
-                    class="btn btn-primary btn-lg w-100 d-flex align-items-center justify-content-center gap-2"
+                    class="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2"
                     id="fill-button"
                   >
                     <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>

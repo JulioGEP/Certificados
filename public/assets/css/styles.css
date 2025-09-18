@@ -21,20 +21,28 @@ body {
 
 .hero-section {
   background: linear-gradient(135deg, rgba(44, 92, 197, 0.12), rgba(44, 92, 197, 0));
+  padding: 1.5rem 0 1rem;
+}
+
+.hero-header {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
 }
 
 .hero-logo {
-  max-width: 260px;
-  width: 100%;
+  width: 130px;
   height: auto;
   display: block;
-  margin: 1.5rem auto;
 }
 
 .hero-title {
   font-size: clamp(2rem, 4vw, 2.75rem);
   font-weight: 600;
   color: #1f274d;
+  margin: 0;
+  text-align: left;
 }
 
 .text-bg-primary-soft {
@@ -45,6 +53,26 @@ body {
 
 .card {
   border-radius: var(--brand-radius);
+}
+
+.budget-card .card-body {
+  padding: 1.5rem;
+}
+
+@media (min-width: 992px) {
+  .hero-section {
+    padding: 2rem 0 1.5rem;
+  }
+
+  .budget-card .card-body {
+    padding: 2rem 2.5rem;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .hero-header {
+    align-items: flex-start;
+  }
 }
 
 .table thead th {
@@ -109,6 +137,10 @@ body {
 @media (max-width: 991.98px) {
   .card-body {
     padding: 2rem;
+  }
+
+  .budget-card .card-body {
+    padding: 1.5rem;
   }
 
   .table-responsive {
