@@ -49,12 +49,16 @@
     return lookup;
   }, new Map());
 
+  const CERTIFICATE_BUTTON_LABEL = 'Certificado';
+  const GENERATE_ALL_CERTIFICATES_LABEL = 'Generar Todos los Certificados';
+
   const elements = {
     budgetForm: document.getElementById('budget-form'),
     budgetInput: document.getElementById('budget-input'),
     fillButton: document.getElementById('fill-button'),
     addManualRow: document.getElementById('add-manual-row'),
     clearStorage: document.getElementById('clear-storage'),
+    generateAllCertificates: document.getElementById('generate-all-certificates'),
     tableBody: document.getElementById('table-body'),
     alertContainer: document.getElementById('alert-container')
   };
@@ -74,6 +78,7 @@
     elements.budgetForm.addEventListener('submit', handleBudgetSubmit);
     elements.addManualRow.addEventListener('click', addEmptyRow);
     elements.clearStorage.addEventListener('click', clearAllRows);
+    elements.generateAllCertificates.addEventListener('click', handleGenerateAllCertificates);
   }
 
   function hydrateFromStorage() {
@@ -136,7 +141,7 @@
       emptyCell.textContent = 'Todavía no has añadido ningún alumno. Recupera un presupuesto o añade una fila manual.';
       emptyRow.appendChild(emptyCell);
       tableBody.appendChild(emptyRow);
-      updateClearButtonState();
+      updateActionButtonsState();
       return;
     }
 
@@ -201,7 +206,7 @@
       const pdfButton = document.createElement('button');
       pdfButton.type = 'button';
       pdfButton.className = 'btn btn-primary btn-sm';
-      pdfButton.textContent = 'Generar PDF';
+      pdfButton.textContent = CERTIFICATE_BUTTON_LABEL;
       pdfButton.addEventListener('click', () => handleGeneratePdf(index, pdfButton));
 
       const deleteButton = document.createElement('button');
@@ -218,7 +223,7 @@
       tableBody.appendChild(tr);
     });
 
-    updateClearButtonState();
+    updateActionButtonsState();
   }
 
   function resolveTooltipText(column, rawValue) {
@@ -356,9 +361,60 @@
       .finally(() => {
         if (triggerButton instanceof HTMLButtonElement) {
           triggerButton.disabled = false;
-          triggerButton.textContent = originalLabel || 'Generar PDF';
+          triggerButton.textContent = originalLabel || CERTIFICATE_BUTTON_LABEL;
         }
       });
+  }
+
+  async function handleGenerateAllCertificates() {
+    if (!state.rows.length) {
+      showAlert('info', 'Añade al menos un alumn@ antes de generar los certificados.');
+      return;
+    }
+
+    if (!window.certificatePdf || typeof window.certificatePdf.generate !== 'function') {
+      showAlert('danger', 'La librería de certificados no está disponible.');
+      return;
+    }
+
+    const triggerButton = elements.generateAllCertificates;
+    let originalLabel = '';
+
+    if (triggerButton instanceof HTMLButtonElement) {
+      originalLabel = triggerButton.textContent || '';
+      triggerButton.disabled = true;
+      triggerButton.textContent = 'Generando...';
+    }
+
+    const rowsSnapshot = [...state.rows];
+    const failedRows = [];
+
+    for (let index = 0; index < rowsSnapshot.length; index += 1) {
+      const row = rowsSnapshot[index];
+      try {
+        await window.certificatePdf.generate(row);
+      } catch (error) {
+        console.error(`No se ha podido generar el certificado PDF de la fila ${index + 1}`, error);
+        failedRows.push(index + 1);
+      }
+    }
+
+    if (failedRows.length === 0) {
+      showAlert('success', 'Todos los certificados se han generado y descargado correctamente.');
+    } else if (failedRows.length === rowsSnapshot.length) {
+      showAlert('danger', 'No se ha podido generar ningún certificado. Revisa los datos e inténtalo de nuevo.');
+    } else {
+      const failedSummary = failedRows.join(', ');
+      const suffix = failedSummary ? ` (filas: ${failedSummary})` : '';
+      showAlert('warning', `Algunos certificados no se han podido generar${suffix}. Inténtalo de nuevo.`);
+    }
+
+    if (triggerButton instanceof HTMLButtonElement) {
+      triggerButton.disabled = state.rows.length === 0;
+      triggerButton.textContent = originalLabel || GENERATE_ALL_CERTIFICATES_LABEL;
+    }
+
+    updateActionButtonsState();
   }
 
   async function handleBudgetSubmit(event) {
@@ -557,8 +613,10 @@
     showAlert('success', 'Listado vaciado correctamente.');
   }
 
-  function updateClearButtonState() {
-    elements.clearStorage.disabled = state.rows.length === 0;
+  function updateActionButtonsState() {
+    const hasRows = state.rows.length > 0;
+    elements.clearStorage.disabled = !hasRows;
+    elements.generateAllCertificates.disabled = !hasRows;
   }
 
   function getTrainingDuration(trainingName) {
