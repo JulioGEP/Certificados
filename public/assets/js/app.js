@@ -12,6 +12,30 @@
     { field: 'formacion', label: 'Formación', type: 'text', placeholder: 'Título de la formación' }
   ];
 
+  const OPEN_TRAINING_DURATION_ENTRIES = [
+    ['Carretilla elevadora', '8'],
+    ['Carretilla elevadora frontal', '6'],
+    ['Espacios confinados TELCO', '6'],
+    ['Formación para Jefes de emergencia y jefes de intervención', '8'],
+    ['Formaciones TELCO', '6'],
+    ['Operaciones TELCO', '6'],
+    ['Pack Emergencias (PAUX + EI)', '6'],
+    ['Riesgo eléctrico TELCO', '6'],
+    ['SVB y DEA (acreditación oficial)', '6'],
+    ['Trabajos en altura', '8'],
+    ['Trabajos en altura TELCO 1', '6'],
+    ['Trabajos en espacios confinados', '8'],
+    ['Trabajos verticales', '12']
+  ];
+
+  const TRAINING_DURATION_LOOKUP = OPEN_TRAINING_DURATION_ENTRIES.reduce((lookup, [name, hours]) => {
+    const normalisedName = normaliseTrainingName(name);
+    if (normalisedName && !lookup.has(normalisedName)) {
+      lookup.set(normalisedName, hours);
+    }
+    return lookup;
+  }, new Map());
+
   const elements = {
     budgetForm: document.getElementById('budget-form'),
     budgetInput: document.getElementById('budget-input'),
@@ -45,7 +69,16 @@
       if (!raw) return;
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        state.rows = parsed.map((row) => ({ ...createEmptyRow(), ...row }));
+        state.rows = parsed.map((row) => {
+          const hydratedRow = { ...createEmptyRow(), ...row };
+          if (hydratedRow.duracion === undefined || hydratedRow.duracion === null || hydratedRow.duracion === '') {
+            const duration = getTrainingDuration(hydratedRow.formacion);
+            if (duration) {
+              hydratedRow.duracion = duration;
+            }
+          }
+          return hydratedRow;
+        });
       }
     } catch (error) {
       console.error('No se ha podido recuperar la información guardada', error);
@@ -135,6 +168,9 @@
           }
           input.addEventListener('input', (event) => {
             updateRowValue(index, column.field, event.target.value);
+            if (column.field === 'formacion') {
+              applyTrainingDuration(index, event.target.value);
+            }
           });
           td.appendChild(input);
         }
@@ -164,6 +200,8 @@
     input.type = column.type === 'number' ? 'number' : column.type;
     input.placeholder = column.placeholder || '';
     input.value = column.type === 'date' ? normaliseDateValue(value) : value || '';
+    input.dataset.field = column.field;
+    input.dataset.index = String(index);
     if (column.label) {
       input.setAttribute('aria-label', column.label);
     }
@@ -367,6 +405,7 @@
       presupuesto: dealId,
       fecha: normaliseDateValue(data.trainingDate),
       lugar: data.trainingLocation || '',
+      duracion: getTrainingDuration(data.trainingName),
       cliente: data.clientName || '',
       formacion: data.trainingName || '',
       personaContacto: data.contactName || '',
@@ -424,6 +463,39 @@
 
   function updateClearButtonState() {
     elements.clearStorage.disabled = state.rows.length === 0;
+  }
+
+  function getTrainingDuration(trainingName) {
+    const normalisedName = normaliseTrainingName(trainingName);
+    if (!normalisedName) {
+      return '';
+    }
+    return TRAINING_DURATION_LOOKUP.get(normalisedName) || '';
+  }
+
+  function normaliseTrainingName(value) {
+    if (!value) return '';
+    return value
+      .toString()
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+  }
+
+  function applyTrainingDuration(rowIndex, trainingValue) {
+    if (!state.rows[rowIndex]) return;
+    const duration = getTrainingDuration(trainingValue);
+    if (duration === '' || state.rows[rowIndex].duracion === duration) {
+      return;
+    }
+    updateRowValue(rowIndex, 'duracion', duration);
+    const durationInput = elements.tableBody.querySelector(
+      `input[data-index="${rowIndex}"][data-field="duracion"]`
+    );
+    if (durationInput && durationInput.value !== duration) {
+      durationInput.value = duration;
+    }
   }
 
   function normaliseDateValue(value) {
