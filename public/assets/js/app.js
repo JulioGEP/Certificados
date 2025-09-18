@@ -195,12 +195,24 @@
 
       const actionsTd = document.createElement('td');
       actionsTd.className = 'text-center';
+      const actionsWrapper = document.createElement('div');
+      actionsWrapper.className = 'd-flex flex-column flex-sm-row gap-2 justify-content-center';
+
+      const pdfButton = document.createElement('button');
+      pdfButton.type = 'button';
+      pdfButton.className = 'btn btn-primary btn-sm';
+      pdfButton.textContent = 'Generar PDF';
+      pdfButton.addEventListener('click', () => handleGeneratePdf(index, pdfButton));
+
       const deleteButton = document.createElement('button');
       deleteButton.type = 'button';
       deleteButton.className = 'btn btn-outline-danger btn-sm';
       deleteButton.textContent = 'Eliminar';
       deleteButton.addEventListener('click', () => removeRow(index));
-      actionsTd.appendChild(deleteButton);
+
+      actionsWrapper.appendChild(pdfButton);
+      actionsWrapper.appendChild(deleteButton);
+      actionsTd.appendChild(actionsWrapper);
       tr.appendChild(actionsTd);
 
       tableBody.appendChild(tr);
@@ -311,6 +323,42 @@
 
     badge.classList.remove('d-none');
     badge.textContent = documentType;
+  }
+
+  function handleGeneratePdf(rowIndex, triggerButton) {
+    const row = state.rows[rowIndex];
+    if (!row) {
+      showAlert('danger', 'No se ha encontrado la fila seleccionada.');
+      return;
+    }
+
+    if (!window.certificatePdf || typeof window.certificatePdf.generate !== 'function') {
+      showAlert('danger', 'La librería de certificados no está disponible.');
+      return;
+    }
+
+    let originalLabel = '';
+    if (triggerButton instanceof HTMLButtonElement) {
+      originalLabel = triggerButton.textContent;
+      triggerButton.disabled = true;
+      triggerButton.textContent = 'Generando...';
+    }
+
+    window.certificatePdf
+      .generate(row)
+      .then(() => {
+        showAlert('success', 'Certificado generado correctamente.');
+      })
+      .catch((error) => {
+        console.error('No se ha podido generar el certificado PDF', error);
+        showAlert('danger', 'No se ha podido generar el certificado en PDF. Revisa los datos e inténtalo de nuevo.');
+      })
+      .finally(() => {
+        if (triggerButton instanceof HTMLButtonElement) {
+          triggerButton.disabled = false;
+          triggerButton.textContent = originalLabel || 'Generar PDF';
+        }
+      });
   }
 
   async function handleBudgetSubmit(event) {
