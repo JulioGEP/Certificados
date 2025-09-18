@@ -8,6 +8,8 @@ const HEADERS = {
   'Access-Control-Allow-Methods': 'GET,OPTIONS'
 };
 
+const fieldOptionsCache = new Map();
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return {
@@ -48,8 +50,19 @@ exports.handler = async (event) => {
     }
 
     const trainingDate = deal[TRAINING_DATE_FIELD] || '';
-    const trainingLocation = mapTrainingLocation(deal[TRAINING_LOCATION_FIELD]);
-    const trainingName = deal[TRAINING_NAME_FIELD] || '';
+    const rawTrainingLocation = await resolveDealFieldOptionValue(
+      baseUrl,
+      apiToken,
+      TRAINING_LOCATION_FIELD,
+      deal[TRAINING_LOCATION_FIELD]
+    );
+    const trainingLocation = mapTrainingLocation(rawTrainingLocation);
+    const trainingName = await resolveDealFieldOptionValue(
+      baseUrl,
+      apiToken,
+      TRAINING_NAME_FIELD,
+      deal[TRAINING_NAME_FIELD]
+    );
 
     const organisationId = extractEntityId(deal.org_id);
     const personId = extractEntityId(deal.person_id);
@@ -175,6 +188,77 @@ function extractPrimaryEmail(person) {
   }
 
   return '';
+}
+
+async function resolveDealFieldOptionValue(baseUrl, apiToken, fieldKey, rawValue) {
+  if (rawValue === null || rawValue === undefined) {
+    return '';
+  }
+
+  if (Array.isArray(rawValue)) {
+    const firstValue = rawValue.find((item) => item !== null && item !== undefined);
+    if (firstValue !== undefined) {
+      return resolveDealFieldOptionValue(baseUrl, apiToken, fieldKey, firstValue);
+    }
+    return '';
+  }
+
+  if (typeof rawValue === 'object') {
+    const labelLike = rawValue.label || rawValue.name;
+    if (labelLike) {
+      return labelLike;
+    }
+
+    if (rawValue.value !== undefined || rawValue.id !== undefined) {
+      const nestedValue = rawValue.value !== undefined ? rawValue.value : rawValue.id;
+      return resolveDealFieldOptionValue(baseUrl, apiToken, fieldKey, nestedValue);
+    }
+
+    return '';
+  }
+
+  const stringValue = String(rawValue).trim();
+  if (!stringValue) {
+    return '';
+  }
+
+  if (!/^\d+$/.test(stringValue)) {
+    return stringValue;
+  }
+
+  try {
+    const options = await fetchDealFieldOptions(baseUrl, apiToken, fieldKey);
+    const match = options.find((option) => {
+      const optionIdentifier =
+        option.id !== undefined ? option.id : option.value !== undefined ? option.value : option.key;
+      return optionIdentifier !== undefined && String(optionIdentifier) === stringValue;
+    });
+
+    if (match) {
+      return match.label || match.name || match.value || stringValue;
+    }
+  } catch (error) {
+    console.error(`No se ha podido resolver el valor del campo ${fieldKey}`, error);
+  }
+
+  return stringValue;
+}
+
+async function fetchDealFieldOptions(baseUrl, apiToken, fieldKey) {
+  if (fieldOptionsCache.has(fieldKey)) {
+    return fieldOptionsCache.get(fieldKey);
+  }
+
+  try {
+    const fieldResponse = await pipedriveRequest(baseUrl, apiToken, `/dealFields/${fieldKey}`);
+    const options = Array.isArray(fieldResponse?.data?.options) ? fieldResponse.data.options : [];
+    fieldOptionsCache.set(fieldKey, options);
+    return options;
+  } catch (error) {
+    console.error(`No se han podido recuperar las opciones del campo ${fieldKey}`, error);
+    fieldOptionsCache.set(fieldKey, []);
+    return [];
+  }
 }
 
 function mapTrainingLocation(rawLocation) {
