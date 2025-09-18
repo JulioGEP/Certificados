@@ -137,7 +137,7 @@
       const deleteButton = document.createElement('button');
       deleteButton.type = 'button';
       deleteButton.className = 'btn btn-outline-danger btn-sm';
-      deleteButton.innerHTML = '<span aria-hidden="true">&times;</span> Eliminar';
+      deleteButton.textContent = 'Eliminar';
       deleteButton.addEventListener('click', () => removeRow(index));
       actionsTd.appendChild(deleteButton);
       tr.appendChild(actionsTd);
