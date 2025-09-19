@@ -1,5 +1,6 @@
 (() => {
   const STORAGE_KEY = 'gep-certificados/session/v1';
+  const CONTACTS_STORAGE_KEY = 'gep-certificados/deal-contacts/v1';
   const trainingTemplates = window.trainingTemplates || null;
   const IRATA_TRAINERS = [
     'Cristobal Corredor Navarro: 1/248468',
@@ -61,7 +62,8 @@
 
   const state = {
     rows: [],
-    isLoading: false
+    isLoading: false,
+    dealContacts: new Map()
   };
 
   const templateState = {
@@ -487,6 +489,12 @@
   }
 
   function hydrateFromStorage() {
+    hydrateRowsFromStorage();
+    hydrateDealContactsFromStorage();
+    pruneStoredDealContacts();
+  }
+
+  function hydrateRowsFromStorage() {
     try {
       const raw = window.sessionStorage.getItem(STORAGE_KEY);
       if (!raw) return;
@@ -509,6 +517,106 @@
     }
   }
 
+  function hydrateDealContactsFromStorage() {
+    try {
+      const raw = window.sessionStorage.getItem(CONTACTS_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        return;
+      }
+
+      const hydratedContacts = new Map();
+
+      parsed.forEach((entry) => {
+        if (!Array.isArray(entry) || entry.length < 2) {
+          return;
+        }
+        const [storedDealId, storedContact] = entry;
+        const normalisedDealId = normaliseDealId(storedDealId);
+        if (!normalisedDealId || typeof storedContact !== 'object' || storedContact === null) {
+          return;
+        }
+
+        hydratedContacts.set(normalisedDealId, {
+          dealId: String(storedContact.dealId || storedDealId || ''),
+          contactName: storedContact.contactName || '',
+          contactEmail: storedContact.contactEmail || '',
+          contactPersonId: storedContact.contactPersonId || ''
+        });
+      });
+
+      state.dealContacts = hydratedContacts;
+    } catch (error) {
+      console.error('No se ha podido recuperar la información de contacto guardada', error);
+      state.dealContacts = new Map();
+    }
+  }
+
+  function pruneStoredDealContacts() {
+    if (!(state.dealContacts instanceof Map)) {
+      state.dealContacts = new Map();
+    }
+
+    const validDealIds = new Set(
+      state.rows
+        .map((row) => normaliseDealId(row.presupuesto))
+        .filter((dealId) => dealId)
+    );
+
+    const updatedContacts = new Map();
+
+    state.dealContacts.forEach((contact, dealIdKey) => {
+      if (validDealIds.has(dealIdKey)) {
+        updatedContacts.set(dealIdKey, contact);
+      }
+    });
+
+    state.rows.forEach((row) => {
+      const normalisedDealId = normaliseDealId(row.presupuesto);
+      if (!normalisedDealId || updatedContacts.has(normalisedDealId)) {
+        return;
+      }
+
+      if (!row.personaContacto && !row.correoContacto) {
+        return;
+      }
+
+      updatedContacts.set(normalisedDealId, {
+        dealId: String(row.presupuesto || ''),
+        contactName: row.personaContacto || '',
+        contactEmail: row.correoContacto || '',
+        contactPersonId: row.contactPersonId || ''
+      });
+    });
+
+    const hasChanges =
+      updatedContacts.size !== state.dealContacts.size ||
+      Array.from(updatedContacts.entries()).some(([dealIdKey, contact]) => {
+        const previous = state.dealContacts.get(dealIdKey);
+        if (!previous) {
+          return true;
+        }
+
+        return (
+          (previous.contactName || '') !== (contact.contactName || '') ||
+          (previous.contactEmail || '') !== (contact.contactEmail || '') ||
+          (previous.contactPersonId || '') !== (contact.contactPersonId || '') ||
+          (previous.dealId || '') !== (contact.dealId || '')
+        );
+      });
+
+    state.dealContacts = updatedContacts;
+
+    if (hasChanges) {
+      if (state.dealContacts.size === 0) {
+        clearStoredDealContacts();
+      } else {
+        persistDealContacts();
+      }
+    }
+  }
+
   function persistRows() {
     try {
       window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state.rows));
@@ -516,6 +624,98 @@
       console.error('No se ha podido guardar la información', error);
       showAlert('warning', 'No se ha podido guardar la información en esta sesión.');
     }
+  }
+
+  function persistDealContacts() {
+    try {
+      if (!(state.dealContacts instanceof Map)) {
+        state.dealContacts = new Map();
+      }
+
+      if (state.dealContacts.size === 0) {
+        window.sessionStorage.removeItem(CONTACTS_STORAGE_KEY);
+        return;
+      }
+
+      const serialisableContacts = Array.from(state.dealContacts.entries()).map(([dealIdKey, contact]) => [
+        dealIdKey,
+        {
+          dealId: contact && contact.dealId ? String(contact.dealId) : String(dealIdKey || ''),
+          contactName: contact && contact.contactName ? contact.contactName : '',
+          contactEmail: contact && contact.contactEmail ? contact.contactEmail : '',
+          contactPersonId: contact && contact.contactPersonId ? contact.contactPersonId : ''
+        }
+      ]);
+
+      window.sessionStorage.setItem(CONTACTS_STORAGE_KEY, JSON.stringify(serialisableContacts));
+    } catch (error) {
+      console.error('No se ha podido guardar la información de contacto', error);
+      showAlert('warning', 'No se ha podido guardar la información de contacto en esta sesión.');
+    }
+  }
+
+  function storeDealContact(dealId, contactData = {}) {
+    const normalisedDealId = normaliseDealId(dealId);
+    if (!normalisedDealId) {
+      return;
+    }
+
+    if (!(state.dealContacts instanceof Map)) {
+      state.dealContacts = new Map();
+    }
+
+    const contactRecord = {
+      dealId: String(dealId || ''),
+      contactName: contactData.contactName || '',
+      contactEmail: contactData.contactEmail || '',
+      contactPersonId: contactData.contactPersonId || ''
+    };
+
+    state.dealContacts.set(normalisedDealId, contactRecord);
+    persistDealContacts();
+  }
+
+  function removeStoredDealContactIfUnused(dealId, { skipRowIndex = null } = {}) {
+    const normalisedDealId = normaliseDealId(dealId);
+    if (!normalisedDealId || !(state.dealContacts instanceof Map) || state.dealContacts.size === 0) {
+      return;
+    }
+
+    const stillReferenced = state.rows.some((row, index) => {
+      if (skipRowIndex !== null && index === skipRowIndex) {
+        return false;
+      }
+      return normaliseDealId(row.presupuesto) === normalisedDealId;
+    });
+
+    if (!stillReferenced && state.dealContacts.has(normalisedDealId)) {
+      state.dealContacts.delete(normalisedDealId);
+      persistDealContacts();
+    }
+  }
+
+  function clearStoredDealContacts() {
+    state.dealContacts = new Map();
+    try {
+      window.sessionStorage.removeItem(CONTACTS_STORAGE_KEY);
+    } catch (error) {
+      console.error('No se ha podido limpiar la información de contacto', error);
+    }
+  }
+
+  function handleDealContactBudgetChange(previousBudgetId, newBudgetId, rowIndex) {
+    const previousDealId = normaliseDealId(previousBudgetId);
+    const newDealId = normaliseDealId(newBudgetId);
+
+    if (!previousDealId) {
+      return;
+    }
+
+    if (previousDealId === newDealId) {
+      return;
+    }
+
+    removeStoredDealContactIfUnused(previousDealId, { skipRowIndex: rowIndex });
   }
 
   function createEmptyRow() {
@@ -533,7 +733,8 @@
       formacion: '',
       irata: '',
       personaContacto: '',
-      correoContacto: ''
+      correoContacto: '',
+      contactPersonId: ''
     };
   }
 
@@ -748,8 +949,19 @@
   }
 
   function updateRowValue(index, field, value, reRender = false) {
-    state.rows[index][field] = value;
+    if (!state.rows[index]) {
+      return;
+    }
+
+    const row = state.rows[index];
+    const previousValue = row[field];
+    row[field] = value;
     persistRows();
+
+    if (field === 'presupuesto' && previousValue !== value) {
+      handleDealContactBudgetChange(previousValue, value, index);
+    }
+
     if (reRender === true) {
       // Mantener la posición del cursor no es crítico en la mayoría de campos, por lo que re-renderizamos para asegurar la coherencia.
       renderTable();
@@ -1024,8 +1236,15 @@
       cliente: data.clientName || '',
       formacion: data.trainingName || '',
       personaContacto: data.contactName || '',
-      correoContacto: data.contactEmail || ''
+      correoContacto: data.contactEmail || '',
+      contactPersonId: data.contactPersonId || ''
     };
+
+    storeDealContact(dealId, {
+      contactName: data.contactName || '',
+      contactEmail: data.contactEmail || '',
+      contactPersonId: data.contactPersonId || ''
+    });
 
     const students = Array.isArray(data.students) ? data.students : [];
 
@@ -1059,8 +1278,15 @@
   }
 
   function removeRow(index) {
-    state.rows.splice(index, 1);
+    if (index < 0 || index >= state.rows.length) {
+      return;
+    }
+
+    const [removedRow] = state.rows.splice(index, 1);
     persistRows();
+    if (removedRow && removedRow.presupuesto) {
+      removeStoredDealContactIfUnused(removedRow.presupuesto);
+    }
     renderTable();
     showAlert('info', 'Fila eliminada.');
   }
@@ -1076,6 +1302,7 @@
 
     state.rows = [];
     persistRows();
+    clearStoredDealContacts();
     renderTable();
     showAlert('success', 'Listado vaciado correctamente.');
   }
