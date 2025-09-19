@@ -373,7 +373,15 @@
     );
 
     deleteTemplateButton.disabled = !canDelete;
-    deleteTemplateButton.classList.toggle('d-none', !canDelete);
+    deleteTemplateButton.setAttribute('aria-disabled', String(!canDelete));
+    if (canDelete) {
+      deleteTemplateButton.removeAttribute('title');
+    } else {
+      deleteTemplateButton.setAttribute(
+        'title',
+        'Solo se pueden eliminar las plantillas personalizadas.'
+      );
+    }
   }
 
   function handleDeleteTemplateClick() {
