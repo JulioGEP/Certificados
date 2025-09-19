@@ -7,6 +7,7 @@
     'Luís Vicent Pérez - Irata: 1/175398',
     'Isaac El Allaoui Algaba: Técnico Irata: 1/248469'
   ];
+  const TRABAJOS_VERTICALES_KEY = 'trabajos verticales';
   const TABLE_COLUMNS = [
     { field: 'presupuesto', label: 'Presu', type: 'text', placeholder: 'ID del deal' },
     { field: 'nombre', label: 'Nombre', type: 'text', placeholder: 'Nombre del alumno' },
@@ -491,6 +492,7 @@
               hydratedRow.duracion = duration;
             }
           }
+          applyTrainingSpecificRulesToRowObject(hydratedRow);
           return hydratedRow;
         });
       }
@@ -583,6 +585,9 @@
             updateCellTooltip(td, input, column, value);
             if (column.field === 'formacion') {
               applyTrainingDuration(index, event.target.value);
+            }
+            if (column.field === 'formacion' || column.field === 'fecha') {
+              applyTrainingSpecificLogic(index);
             }
           };
           if (column.type === 'select') {
@@ -1012,16 +1017,20 @@
     const students = Array.isArray(data.students) ? data.students : [];
 
     if (!students.length) {
-      state.rows.push({ ...baseRow });
+      const newRow = { ...baseRow };
+      applyTrainingSpecificRulesToRowObject(newRow);
+      state.rows.push(newRow);
     } else {
       students.forEach((student) => {
-        state.rows.push({
+        const newRow = {
           ...baseRow,
           nombre: student.name || '',
           apellido: student.surname || '',
           dni: student.document || '',
           documentType: detectDocumentType(student.document || '')
-        });
+        };
+        applyTrainingSpecificRulesToRowObject(newRow);
+        state.rows.push(newRow);
       });
     }
 
@@ -1088,6 +1097,125 @@
       if (durationCell && durationColumn) {
         updateCellTooltip(durationCell, durationInput, durationColumn, duration);
       }
+    }
+  }
+
+  function applyTrainingSpecificRulesToRowObject(row) {
+    if (!row) {
+      return row;
+    }
+
+    const desiredSecondaryDate = computeTrabajosVerticalesSecondDate(row);
+    if (desiredSecondaryDate) {
+      row.segundaFecha = desiredSecondaryDate;
+    }
+
+    return row;
+  }
+
+  function applyTrainingSpecificLogic(rowIndex) {
+    if (!applyTrabajosVerticalesSecondDate(rowIndex)) {
+      return;
+    }
+  }
+
+  function applyTrabajosVerticalesSecondDate(rowIndex) {
+    const row = state.rows[rowIndex];
+    if (!row) {
+      return false;
+    }
+
+    const desiredSecondaryDate = computeTrabajosVerticalesSecondDate(row);
+    if (!desiredSecondaryDate) {
+      return false;
+    }
+
+    updateRowValue(rowIndex, 'segundaFecha', desiredSecondaryDate);
+    syncTableInputValue(rowIndex, 'segundaFecha', desiredSecondaryDate);
+    return true;
+  }
+
+  function computeTrabajosVerticalesSecondDate(row) {
+    if (!row || !isTrabajosVerticalesTraining(row.formacion)) {
+      return null;
+    }
+
+    const primaryDate = normaliseDateValue(row.fecha);
+    if (!primaryDate) {
+      return null;
+    }
+
+    const desiredSecondaryDate = addDaysToIsoDate(primaryDate, 1);
+    if (!desiredSecondaryDate) {
+      return null;
+    }
+
+    const currentSecondaryNormalised = normaliseDateValue(row.segundaFecha);
+    if (currentSecondaryNormalised === desiredSecondaryDate && row.segundaFecha === desiredSecondaryDate) {
+      return null;
+    }
+
+    return desiredSecondaryDate;
+  }
+
+  function isTrabajosVerticalesTraining(trainingValue) {
+    const normalisedName = normaliseTrainingName(trainingValue);
+    if (!normalisedName) {
+      return false;
+    }
+    return normalisedName.startsWith(TRABAJOS_VERTICALES_KEY);
+  }
+
+  function normaliseTrainingName(value) {
+    if (trainingTemplates && typeof trainingTemplates.normaliseName === 'function') {
+      return trainingTemplates.normaliseName(value);
+    }
+    if (value === undefined || value === null) {
+      return '';
+    }
+    return String(value)
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+      .replace(/\s+/g, ' ');
+  }
+
+  function addDaysToIsoDate(isoDate, daysToAdd) {
+    if (!isoDate) {
+      return '';
+    }
+
+    const date = new Date(`${isoDate}T00:00:00Z`);
+    if (Number.isNaN(date.getTime())) {
+      return '';
+    }
+
+    const increment = Number(daysToAdd || 0);
+    date.setUTCDate(date.getUTCDate() + increment);
+    return date.toISOString().split('T')[0];
+  }
+
+  function syncTableInputValue(rowIndex, field, value) {
+    if (!elements.tableBody) {
+      return;
+    }
+
+    const selector = `input[data-index="${rowIndex}"][data-field="${field}"]`;
+    const input = elements.tableBody.querySelector(selector);
+    if (!input) {
+      return;
+    }
+
+    if (input.value !== value) {
+      input.value = value;
+    }
+
+    const column = TABLE_COLUMN_LOOKUP.get(field);
+    const cell = input.closest('td');
+    if (cell && column) {
+      updateCellTooltip(cell, input, column, value);
     }
   }
 
