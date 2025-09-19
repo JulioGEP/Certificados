@@ -5,7 +5,14 @@
   const ASSET_PATHS = {
     background: 'assets/certificados/fondo-certificado.png',
     leftSidebar: 'assets/certificados/lateral-izquierdo.png',
-    footer: 'assets/certificados/pie-firma.png'
+    footer: 'assets/certificados/pie-firma.png',
+    logo: 'assets/certificados/logo-certificado.png'
+  };
+
+  const IMAGE_ASPECT_RATIOS = {
+    background: 1328 / 839,
+    footer: 153 / 853,
+    logo: 382 / 827
   };
 
   const assetCache = new Map();
@@ -148,13 +155,14 @@
   }
 
   async function buildDocDefinition(row) {
-    const [backgroundImage, sidebarImage, footerImage] = await Promise.all([
+    const [backgroundImage, sidebarImage, footerImage, logoImage] = await Promise.all([
       getCachedAsset('background'),
       getCachedAsset('leftSidebar'),
-      getCachedAsset('footer')
+      getCachedAsset('footer'),
+      getCachedAsset('logo')
     ]);
 
-    const pageMargins = [150, 70, 180, 110];
+    const pageMargins = [140, 70, 170, 110];
     const fullName = buildFullName(row);
     const documentSentence = buildDocumentSentence(row);
     const trainingDate = formatTrainingDate(row.fecha);
@@ -188,10 +196,30 @@
       background: function (currentPage, pageSize) {
         const pageWidth = pageSize.width || 841.89;
         const pageHeight = pageSize.height || 595.28;
-        const sidebarWidth = Math.min(120, pageWidth * 0.14);
-        const backgroundWidth = Math.min(380, pageWidth * 0.45);
-        const footerWidth = Math.min(260, pageWidth * 0.3);
-        const footerHeight = footerWidth * 0.28;
+        const sidebarWidth = Math.min(70, pageWidth * 0.08);
+        const backgroundWidth = Math.min(320, pageWidth * 0.35);
+        const backgroundX = pageWidth - backgroundWidth;
+        const backgroundHeight = backgroundWidth * IMAGE_ASPECT_RATIOS.background;
+        const backgroundY = 0;
+        const backgroundBottom = backgroundY + backgroundHeight;
+        const visibleBackgroundTop = Math.max(0, backgroundY);
+        const visibleBackgroundBottom = Math.min(pageHeight, backgroundBottom);
+        const availableBackgroundHeight = Math.max(
+          0,
+          visibleBackgroundBottom - visibleBackgroundTop
+        );
+        const footerWidth = Math.min(pageWidth - 40, 780);
+        const footerHeight = footerWidth * IMAGE_ASPECT_RATIOS.footer;
+        const footerX = Math.max(20, (pageWidth - footerWidth) / 2);
+        const footerY = pageHeight - footerHeight;
+        const logoWidth = Math.min(backgroundWidth * 0.7, 220);
+        const logoHeight = logoWidth * IMAGE_ASPECT_RATIOS.logo;
+        const logoYWithinBackground = availableBackgroundHeight
+          ? visibleBackgroundTop + Math.max(0, (availableBackgroundHeight - logoHeight) / 2)
+          : visibleBackgroundTop;
+        const logoY = Math.min(pageHeight - logoHeight, Math.max(0, logoYWithinBackground));
+        const logoX = backgroundX + (backgroundWidth - logoWidth) / 2;
+
         return [
           {
             image: sidebarImage,
@@ -202,12 +230,17 @@
           {
             image: backgroundImage,
             width: backgroundWidth,
-            absolutePosition: { x: pageWidth - backgroundWidth, y: 0 }
+            absolutePosition: { x: backgroundX, y: backgroundY }
+          },
+          {
+            image: logoImage,
+            width: logoWidth,
+            absolutePosition: { x: logoX, y: logoY }
           },
           {
             image: footerImage,
             width: footerWidth,
-            absolutePosition: { x: pageMargins[0], y: pageHeight - footerHeight - pageMargins[3] }
+            absolutePosition: { x: footerX, y: footerY }
           }
         ];
       },
