@@ -16,7 +16,7 @@
     { field: 'fecha', label: 'Fecha', type: 'date' },
     { field: 'segundaFecha', label: '2ª Fecha', type: 'date' },
     { field: 'lugar', label: 'Lugar', type: 'text', placeholder: 'Sede de la formación' },
-    { field: 'duracion', label: 'Horas', type: 'number', placeholder: 'Horas' },
+    { field: 'duracion', label: 'Horas', type: 'text', placeholder: 'Ej. 6h' },
     { field: 'cliente', label: 'Cliente', type: 'text', placeholder: 'Empresa' },
     { field: 'formacion', label: 'Formación', type: 'text', placeholder: 'Título de la formación' },
     {
@@ -733,7 +733,12 @@
     if (column.label) {
       input.setAttribute('aria-label', column.label);
     }
-    if (column.type === 'number') {
+    if (column.field === 'duracion') {
+      input.autocomplete = 'off';
+      input.inputMode = 'decimal';
+      input.pattern = '^\\d+(?:[.,]\\d{1,2})?h?$';
+      input.spellcheck = false;
+    } else if (column.type === 'number') {
       input.min = '0';
       input.step = '0.5';
       input.inputMode = 'decimal';
