@@ -32,27 +32,27 @@
   }, new Map());
 
   const OPEN_TRAINING_DURATION_ENTRIES = [
-    ['Pack Emergencias', '6'],
-    ['Trabajos en Altura', '8'],
-    ['Trabajos Verticales', '12'],
-    ['Carretilla elevadora', '8'],
-    ['Espacios Confinados', '8'],
-    ['Operaciones Telco', '6'],
-    ['Riesgo Eléctrico Telco', '6'],
-    ['Espacios Confinados Telco', '6'],
-    ['Trabajos en altura Telco', '6'],
-    ['Basico de Fuego', '4'],
-    ['Avanzado de Fuego', '5'],
-    ['Avanzado y Casa de Humo', '6'],
-    ['Riesgo Químico', '4'],
-    ['Primeros Auxilios', '4'],
-    ['SVD y DEA', '6'],
-    ['Implantación de PAU', '6'],
-    ['Jefes de Emergencias', '8'],
-    ['Curso de ERA\'s', '8'],
-    ['Andamios', '8'],
-    ['Renovación Bombero de Empresa', '20'],
-    ['Bombero de Empresa Inicial', '350']
+    ['Pack Emergencias', '6h'],
+    ['Trabajos en Altura', '8h'],
+    ['Trabajos Verticales', '12h'],
+    ['Carretilla elevadora', '8h'],
+    ['Espacios Confinados', '8h'],
+    ['Operaciones Telco', '6h'],
+    ['Riesgo Eléctrico Telco', '6h'],
+    ['Espacios Confinados Telco', '6h'],
+    ['Trabajos en altura Telco', '6h'],
+    ['Basico de Fuego', '4h'],
+    ['Avanzado de Fuego', '5h'],
+    ['Avanzado y Casa de Humo', '6h'],
+    ['Riesgo Químico', '4h'],
+    ['Primeros Auxilios', '4h'],
+    ['SVD y DEA', '6h'],
+    ['Implantación de PAU', '6h'],
+    ['Jefes de Emergencias', '8h'],
+    ['Curso de ERA\'s', '8h'],
+    ['Andamios', '8h'],
+    ['Renovación Bombero de Empresa', '20h'],
+    ['Bombero de Empresa Inicial', '350h']
   ];
 
   const TRAINING_DURATION_LOOKUP = OPEN_TRAINING_DURATION_ENTRIES.reduce((lookup, [name, hours]) => {
