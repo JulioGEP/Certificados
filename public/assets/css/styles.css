@@ -242,6 +242,12 @@ body {
   min-width: 0;
   width: 1%;
   white-space: nowrap;
+  padding-right: 0.25rem;
+}
+
+#students-table th:nth-child(5),
+#students-table td[data-label='Fecha'] {
+  padding-left: 0.25rem;
 }
 
 #students-table th:nth-child(5),
