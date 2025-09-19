@@ -78,6 +78,8 @@ exports.handler = async (event) => {
 
     const organisationId = extractEntityId(deal.org_id);
     const personId = extractEntityId(deal.person_id);
+    const contactPersonId =
+      personId !== null && personId !== undefined ? String(personId) : '';
 
     let clientName = deal.org_name || '';
     let contactName = deal.person_name || '';
@@ -114,6 +116,7 @@ exports.handler = async (event) => {
         clientName,
         contactName,
         contactEmail,
+        contactPersonId,
         students,
         secondaryTrainingDate: trainingSecondDate
       }
