@@ -201,6 +201,74 @@
     return formatter.format(parsed);
   }
 
+  function parseDateValue(value) {
+    const normalised = normaliseText(value);
+    if (!normalised) {
+      return null;
+    }
+    const parsed = new Date(normalised);
+    if (Number.isNaN(parsed.getTime())) {
+      return null;
+    }
+    return parsed;
+  }
+
+  function formatTrainingDateRange(primaryValue, secondaryValue) {
+    const hasSecondary = normaliseText(secondaryValue) !== '';
+    if (!hasSecondary) {
+      return formatTrainingDate(primaryValue);
+    }
+
+    const hasPrimary = normaliseText(primaryValue) !== '';
+    if (!hasPrimary) {
+      return formatTrainingDate(secondaryValue);
+    }
+
+    const primaryDate = parseDateValue(primaryValue);
+    const secondaryDate = parseDateValue(secondaryValue);
+
+    if (primaryDate && secondaryDate) {
+      const sameYear = primaryDate.getFullYear() === secondaryDate.getFullYear();
+      if (sameYear) {
+        const yearFormatter = new Intl.DateTimeFormat('es-ES', { year: 'numeric' });
+        const yearLabel = yearFormatter.format(primaryDate);
+
+        if (primaryDate.getMonth() === secondaryDate.getMonth()) {
+          const dayFormatter = new Intl.DateTimeFormat('es-ES', { day: 'numeric' });
+          const monthFormatter = new Intl.DateTimeFormat('es-ES', { month: 'long' });
+          const firstDay = dayFormatter.format(primaryDate);
+          const secondDay = dayFormatter.format(secondaryDate);
+          const monthLabel = monthFormatter.format(primaryDate);
+          return `${firstDay} y ${secondDay} de ${monthLabel} de ${yearLabel}`;
+        }
+
+        const dayMonthFormatter = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'long' });
+        const firstDayMonth = dayMonthFormatter.format(primaryDate);
+        const secondDayMonth = dayMonthFormatter.format(secondaryDate);
+        return `${firstDayMonth} y ${secondDayMonth} de ${yearLabel}`;
+      }
+
+      const fullFormatter = new Intl.DateTimeFormat('es-ES', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+      return `${fullFormatter.format(primaryDate)} y ${fullFormatter.format(secondaryDate)}`;
+    }
+
+    const formattedPrimary = formatTrainingDate(primaryValue);
+    const formattedSecondary = formatTrainingDate(secondaryValue);
+
+    if (formattedPrimary === '________') {
+      return formattedSecondary;
+    }
+    if (formattedSecondary === '________') {
+      return formattedPrimary;
+    }
+
+    return `${formattedPrimary} y ${formattedSecondary}`;
+  }
+
   function formatLocation(value) {
     return normaliseText(value) || '________';
   }
@@ -308,7 +376,7 @@
     const pageMargins = [105, 40, 160, 100];
     const fullName = buildFullName(row);
     const documentSentence = buildDocumentSentence(row);
-    const trainingDate = formatTrainingDate(row.fecha);
+    const trainingDate = formatTrainingDateRange(row.fecha, row.segundaFecha);
     const location = formatLocation(row.lugar);
     const duration = formatDuration(row.duracion);
     const trainingName = formatTrainingName(row.formacion);

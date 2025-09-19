@@ -12,6 +12,7 @@
     { field: 'apellido', label: 'Apellidos', type: 'text', placeholder: 'Apellidos del alumno' },
     { field: 'dni', label: 'DNI / NIE', type: 'text', placeholder: 'Documento' },
     { field: 'fecha', label: 'Fecha', type: 'date' },
+    { field: 'segundaFecha', label: '2ª Fecha', type: 'date' },
     { field: 'lugar', label: 'Lugar', type: 'text', placeholder: 'Sede de la formación' },
     { field: 'duracion', label: 'Duración', type: 'number', placeholder: 'Horas' },
     { field: 'cliente', label: 'Cliente', type: 'text', placeholder: 'Empresa' },
@@ -133,6 +134,7 @@
       dni: '',
       documentType: '',
       fecha: '',
+      segundaFecha: '',
       lugar: '',
       duracion: '',
       cliente: '',
@@ -203,7 +205,7 @@
             input.addEventListener('input', handleValueChange);
           } else {
             input.addEventListener('input', handleValueChange);
-            if (column.field === 'fecha') {
+            if (column.type === 'date') {
               input.addEventListener('change', handleValueChange);
             }
           }
@@ -613,6 +615,7 @@
       ...createEmptyRow(),
       presupuesto: dealId,
       fecha: normaliseDateValue(data.trainingDate),
+      segundaFecha: '',
       lugar: data.trainingLocation || '',
       duracion: getTrainingDuration(data.trainingName),
       cliente: data.clientName || '',
