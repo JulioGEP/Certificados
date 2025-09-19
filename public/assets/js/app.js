@@ -1,5 +1,6 @@
 (() => {
   const STORAGE_KEY = 'gep-certificados/session/v1';
+  const trainingTemplates = window.trainingTemplates || null;
   const IRATA_TRAINERS = [
     'Cristobal Corredor Navarro: 1/248468',
     'Laura Medina Matías : 1/247658',
@@ -31,38 +32,6 @@
     return lookup;
   }, new Map());
 
-  const OPEN_TRAINING_DURATION_ENTRIES = [
-    ['Pack Emergencias', '6h'],
-    ['Trabajos en Altura', '8h'],
-    ['Trabajos Verticales', '12h'],
-    ['Carretilla elevadora', '8h'],
-    ['Espacios Confinados', '8h'],
-    ['Operaciones Telco', '6h'],
-    ['Riesgo Eléctrico Telco', '6h'],
-    ['Espacios Confinados Telco', '6h'],
-    ['Trabajos en altura Telco', '6h'],
-    ['Basico de Fuego', '4h'],
-    ['Avanzado de Fuego', '5h'],
-    ['Avanzado y Casa de Humo', '6h'],
-    ['Riesgo Químico', '4h'],
-    ['Primeros Auxilios', '4h'],
-    ['SVD y DEA', '6h'],
-    ['Implantación de PAU', '6h'],
-    ['Jefes de Emergencias', '8h'],
-    ['Curso de ERA\'s', '8h'],
-    ['Andamios', '8h'],
-    ['Renovación Bombero de Empresa', '20h'],
-    ['Bombero de Empresa Inicial', '350h']
-  ];
-
-  const TRAINING_DURATION_LOOKUP = OPEN_TRAINING_DURATION_ENTRIES.reduce((lookup, [name, hours]) => {
-    const normalisedName = normaliseTrainingName(name);
-    if (normalisedName && !lookup.has(normalisedName)) {
-      lookup.set(normalisedName, hours);
-    }
-    return lookup;
-  }, new Map());
-
   const CERTIFICATE_BUTTON_LABEL = 'Certificado';
   const GENERATE_ALL_CERTIFICATES_LABEL = 'Generar Todos los Certificados';
 
@@ -74,12 +43,30 @@
     clearStorage: document.getElementById('clear-storage'),
     generateAllCertificates: document.getElementById('generate-all-certificates'),
     tableBody: document.getElementById('table-body'),
-    alertContainer: document.getElementById('alert-container')
+    alertContainer: document.getElementById('alert-container'),
+    manageTemplatesButton: document.getElementById('manage-templates-button'),
+    templatesModal: document.getElementById('training-templates-modal'),
+    templateForm: document.getElementById('training-template-form'),
+    templateSelector: document.getElementById('template-selector'),
+    templateNameInput: document.getElementById('template-name'),
+    templateTitleInput: document.getElementById('template-title'),
+    templateDurationInput: document.getElementById('template-duration'),
+    addTheoryPoint: document.getElementById('add-theory-point'),
+    addPracticePoint: document.getElementById('add-practice-point'),
+    theoryList: document.getElementById('theory-list'),
+    practiceList: document.getElementById('practice-list')
   };
 
   const state = {
     rows: [],
     isLoading: false
+  };
+
+  const templateState = {
+    currentTemplateId: '',
+    lastSelectedTemplateId: '',
+    modalInstance: null,
+    unsubscribe: null
   };
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -93,6 +80,338 @@
     elements.addManualRow.addEventListener('click', addEmptyRow);
     elements.clearStorage.addEventListener('click', clearAllRows);
     elements.generateAllCertificates.addEventListener('click', handleGenerateAllCertificates);
+    setupTemplateManagement();
+  }
+
+  function setupTemplateManagement() {
+    if (!trainingTemplates) {
+      return;
+    }
+
+    const {
+      manageTemplatesButton,
+      templatesModal,
+      templateForm,
+      templateSelector,
+      templateNameInput,
+      templateTitleInput,
+      templateDurationInput,
+      addTheoryPoint,
+      addPracticePoint,
+      theoryList,
+      practiceList
+    } = elements;
+
+    if (
+      !manageTemplatesButton ||
+      !templatesModal ||
+      !templateForm ||
+      !templateSelector ||
+      !templateNameInput ||
+      !templateTitleInput ||
+      !templateDurationInput ||
+      !theoryList ||
+      !practiceList
+    ) {
+      return;
+    }
+
+    const bootstrapModal = window.bootstrap && window.bootstrap.Modal ? window.bootstrap.Modal : null;
+    if (!bootstrapModal) {
+      console.warn('Bootstrap Modal no disponible para la gestión de plantillas.');
+      return;
+    }
+
+    if (!templateState.modalInstance) {
+      templateState.modalInstance = bootstrapModal.getOrCreateInstance(templatesModal);
+    }
+
+    manageTemplatesButton.addEventListener('click', openTemplatesModal);
+    templateSelector.addEventListener('change', handleTemplateSelectionChange);
+    templateForm.addEventListener('submit', handleTemplateFormSubmit);
+
+    if (addTheoryPoint) {
+      addTheoryPoint.addEventListener('click', () => addTemplatePoint('theory'));
+    }
+
+    if (addPracticePoint) {
+      addPracticePoint.addEventListener('click', () => addTemplatePoint('practice'));
+    }
+
+    theoryList.addEventListener('click', (event) => handleTemplatePointListClick(event));
+    practiceList.addEventListener('click', (event) => handleTemplatePointListClick(event));
+
+    if (templateState.unsubscribe) {
+      templateState.unsubscribe();
+      templateState.unsubscribe = null;
+    }
+
+    templateState.unsubscribe = trainingTemplates.subscribe(() => {
+      handleTemplateLibraryUpdated();
+    });
+
+    populateTemplateSelector(templateState.lastSelectedTemplateId);
+    handleTemplateLibraryUpdated();
+  }
+
+  function openTemplatesModal() {
+    populateTemplateSelector(templateState.lastSelectedTemplateId);
+
+    if (templateState.lastSelectedTemplateId) {
+      const selectedTemplate = trainingTemplates.getTemplateById(templateState.lastSelectedTemplateId);
+      if (selectedTemplate) {
+        templateState.currentTemplateId = selectedTemplate.id;
+        loadTemplateForm(selectedTemplate);
+        elements.templateSelector.value = selectedTemplate.id;
+      } else {
+        resetTemplateForm();
+      }
+    } else {
+      resetTemplateForm();
+    }
+
+    if (templateState.modalInstance) {
+      templateState.modalInstance.show();
+    }
+  }
+
+  function populateTemplateSelector(selectedId = '') {
+    if (!trainingTemplates || !elements.templateSelector) {
+      return;
+    }
+
+    const templates = trainingTemplates.listTemplates();
+    const selector = elements.templateSelector;
+    selector.innerHTML = '';
+
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Selecciona una plantilla…';
+    placeholder.disabled = true;
+    if (!selectedId) {
+      placeholder.selected = true;
+    }
+    selector.appendChild(placeholder);
+
+    templates.forEach((template) => {
+      const option = document.createElement('option');
+      option.value = template.id;
+      option.textContent = template.name;
+      if (template.id === selectedId) {
+        option.selected = true;
+      }
+      selector.appendChild(option);
+    });
+
+    const newOption = document.createElement('option');
+    newOption.value = '__new__';
+    newOption.textContent = 'Crear nueva plantilla';
+    if (selectedId === '__new__') {
+      newOption.selected = true;
+    }
+    selector.appendChild(newOption);
+
+    if (selectedId && selectedId !== '__new__') {
+      selector.value = selectedId;
+    } else if (selectedId === '__new__') {
+      selector.value = '__new__';
+    } else {
+      selector.selectedIndex = 0;
+    }
+  }
+
+  function resetTemplateForm() {
+    templateState.currentTemplateId = '';
+    const emptyTemplate = trainingTemplates ? trainingTemplates.createEmptyTemplate() : null;
+    loadTemplateForm(emptyTemplate);
+    if (elements.templateSelector) {
+      elements.templateSelector.selectedIndex = 0;
+    }
+  }
+
+  function loadTemplateForm(template) {
+    const {
+      templateNameInput,
+      templateTitleInput,
+      templateDurationInput,
+      theoryList,
+      practiceList
+    } = elements;
+
+    const payload = template || (trainingTemplates ? trainingTemplates.createEmptyTemplate() : null) || {
+      name: '',
+      title: '',
+      duration: '',
+      theory: [],
+      practice: []
+    };
+
+    templateNameInput.value = payload.name || '';
+    templateTitleInput.value = payload.title || payload.name || '';
+    templateDurationInput.value = payload.duration || '';
+
+    renderTemplatePoints(theoryList, Array.isArray(payload.theory) ? payload.theory : []);
+    renderTemplatePoints(practiceList, Array.isArray(payload.practice) ? payload.practice : []);
+  }
+
+  function renderTemplatePoints(container, items) {
+    if (!container) {
+      return;
+    }
+    container.innerHTML = '';
+    const entries = Array.isArray(items) ? items : [];
+    entries.forEach((value) => {
+      const point = createTemplatePointInput(value);
+      container.appendChild(point);
+    });
+  }
+
+  function addTemplatePoint(type) {
+    const container = type === 'practice' ? elements.practiceList : elements.theoryList;
+    if (!container) {
+      return;
+    }
+    const point = createTemplatePointInput();
+    container.appendChild(point);
+    const input = point.querySelector('input');
+    if (input) {
+      input.focus();
+    }
+  }
+
+  function createTemplatePointInput(value = '') {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'input-group template-point';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'form-control';
+    input.placeholder = 'Descripción del contenido';
+    input.value = value;
+
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.className = 'btn btn-outline-danger';
+    removeButton.dataset.action = 'remove-point';
+    removeButton.innerHTML = '<span aria-hidden="true">&times;</span>';
+    removeButton.setAttribute('aria-label', 'Eliminar punto');
+
+    wrapper.appendChild(input);
+    wrapper.appendChild(removeButton);
+    return wrapper;
+  }
+
+  function handleTemplatePointListClick(event) {
+    const target = event.target.closest('[data-action="remove-point"]');
+    if (!target) {
+      return;
+    }
+    const wrapper = target.closest('.template-point');
+    if (wrapper && wrapper.parentElement) {
+      wrapper.parentElement.removeChild(wrapper);
+    }
+  }
+
+  function collectTemplatePoints(type) {
+    const container = type === 'practice' ? elements.practiceList : elements.theoryList;
+    if (!container) {
+      return [];
+    }
+    return Array.from(container.querySelectorAll('input'))
+      .map((input) => input.value.trim())
+      .filter((text) => text !== '');
+  }
+
+  function handleTemplateSelectionChange() {
+    if (!trainingTemplates) {
+      return;
+    }
+    const { templateSelector } = elements;
+    const selectedValue = templateSelector.value;
+
+    if (!selectedValue || selectedValue === '') {
+      resetTemplateForm();
+      return;
+    }
+
+    if (selectedValue === '__new__') {
+      templateState.currentTemplateId = '';
+      loadTemplateForm(trainingTemplates.createEmptyTemplate());
+      return;
+    }
+
+    const selectedTemplate = trainingTemplates.getTemplateById(selectedValue);
+    if (selectedTemplate) {
+      templateState.currentTemplateId = selectedTemplate.id;
+      templateState.lastSelectedTemplateId = selectedTemplate.id;
+      loadTemplateForm(selectedTemplate);
+    }
+  }
+
+  function handleTemplateFormSubmit(event) {
+    event.preventDefault();
+    if (!trainingTemplates) {
+      showAlert('danger', 'No se ha podido guardar la plantilla.');
+      return;
+    }
+
+    const nameValue = elements.templateNameInput.value.trim();
+    const titleValue = elements.templateTitleInput.value.trim();
+    const durationValue = elements.templateDurationInput.value.trim();
+
+    if (!nameValue) {
+      elements.templateNameInput.focus();
+      showAlert('danger', 'Introduce el nombre de la formación.');
+      return;
+    }
+
+    const templatePayload = {
+      id: templateState.currentTemplateId,
+      name: nameValue,
+      title: titleValue || nameValue,
+      duration: durationValue,
+      theory: collectTemplatePoints('theory'),
+      practice: collectTemplatePoints('practice')
+    };
+
+    try {
+      const savedTemplate = trainingTemplates.saveTemplate(templatePayload);
+      if (!savedTemplate) {
+        throw new Error('La plantilla no se ha podido guardar.');
+      }
+      templateState.currentTemplateId = savedTemplate.id;
+      templateState.lastSelectedTemplateId = savedTemplate.id;
+      populateTemplateSelector(savedTemplate.id);
+      loadTemplateForm(savedTemplate);
+      elements.templateSelector.value = savedTemplate.id;
+      showAlert('success', 'Plantilla guardada correctamente.');
+    } catch (error) {
+      console.error('No se ha podido guardar la plantilla', error);
+      const message = error && error.message ? error.message : 'No se ha podido guardar la plantilla.';
+      showAlert('danger', message);
+    }
+  }
+
+  function handleTemplateLibraryUpdated() {
+    if (!trainingTemplates || !state.rows.length) {
+      return;
+    }
+
+    let hasChanges = false;
+    const updatedRows = state.rows.map((row) => {
+      const updatedDuration = trainingTemplates.getTrainingDuration(row.formacion);
+      if (updatedDuration && row.duracion !== updatedDuration) {
+        hasChanges = true;
+        return { ...row, duracion: updatedDuration };
+      }
+      return row;
+    });
+
+    if (hasChanges) {
+      state.rows = updatedRows;
+      persistRows();
+      renderTable();
+    }
   }
 
   function hydrateFromStorage() {
@@ -683,21 +1002,10 @@
   }
 
   function getTrainingDuration(trainingName) {
-    const normalisedName = normaliseTrainingName(trainingName);
-    if (!normalisedName) {
+    if (!trainingTemplates) {
       return '';
     }
-    return TRAINING_DURATION_LOOKUP.get(normalisedName) || '';
-  }
-
-  function normaliseTrainingName(value) {
-    if (!value) return '';
-    return value
-      .toString()
-      .trim()
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
+    return trainingTemplates.getTrainingDuration(trainingName) || '';
   }
 
   function applyTrainingDuration(rowIndex, trainingValue) {
