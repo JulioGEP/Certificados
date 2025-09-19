@@ -64,7 +64,7 @@
         stack: [
           { text: 'Parte teórica', style: 'sectionHeading' },
           {
-            ul: theoryItems.map((item) => ({ text: item, style: 'listItem' })),
+            ul: theoryItems.map((item) => ({ text: item, style: 'theoryListItem' })),
             margin: [0, 2, 0, 0]
           }
         ]
@@ -455,6 +455,11 @@
         margin: [0, 0, 0, 4]
       },
       listItem: {
+        margin: [0, 0, 0, 3]
+      },
+      theoryListItem: {
+        fontSize: 9,
+        lineHeight: 1.2,
         margin: [0, 0, 0, 3]
       }
     };
