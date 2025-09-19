@@ -96,6 +96,117 @@
           'Rescate de víctimas y evacuación segura.'
         ]
       }
+    ],
+    [
+      'Carretilla elevadora',
+      {
+        theory: [
+          'Introducción a las carretillas.',
+          'Legislación y normativa vigente.',
+          'Tipos y componentes de la carretilla.',
+          'El operador de carretillas.',
+          'Riesgos y medidas preventivas.',
+          'Normas básicas de utilización y manejo.',
+          'Mantenimiento y seguridad de la carretilla.',
+          'Conceptos sobre la manipulación de cargas.'
+        ],
+        practice: [
+          'Presentación física de la carretilla.',
+          'Normas básicas de utilización.',
+          'Control y mantenimiento de la máquina.',
+          'Comprobaciones previas de seguridad.',
+          'La puesta en funcionamiento.',
+          'Maniobras básicas de circulación.',
+          'Manipulación y movimiento de cargas.'
+        ]
+      }
+    ],
+    [
+      'Andamios',
+      {
+        theory: [
+          'Legislación vigente.',
+          'Generalidades de Prevención de Riesgos Laborales.',
+          'Equipos de Protección Individual (EPI) y herramientas.',
+          'Acceso por estructuras.',
+          'Líneas de Vida horizontales y verticales.',
+          'Elevación de cargas.',
+          'Manipulación de cargas.',
+          'Actuación en caso de emergencia.',
+          'Primeros Auxilios y RCP (Reanimación Cardiopulmonar).'
+        ],
+        practice: [
+          'Montaje y desmontaje de estructuras (ej. bastidas / andamios tipo Lyher y LITEC).',
+          'Elevación de cargas.',
+          'Manipulación de cargas.',
+          'Trabajos en suspensión, posicionamiento y uso de polipastos, truss, etc.',
+          'Técnicas de rescate, evacuación de víctima.',
+          'Simulacro de emergencia.'
+        ]
+      }
+    ],
+    [
+      'Operaciones Telco',
+      {
+        theory: [
+          'Definición de los trabajos.',
+          'Técnicas preventivas específicas.',
+          'Evaluación de riesgos y plan de seguridad y salud.',
+          'Protecciones colectivas (colocación, usos, obligaciones y mantenimiento).',
+          'Protecciones individuales (colocación, usos, obligaciones y mantenimiento).',
+          'Riesgo eléctrico.',
+          'Caída de personas al mismo nivel.',
+          'Espacios confinados.',
+          'Riesgos de protecciones de partículas, golpes y cortes.',
+          'Riesgos biológicos.',
+          'Riesgos químicos.',
+          'Iluminación, ruido, vibraciones, condiciones climatológicas.',
+          'Radiaciones no ionizantes (campos electromagnéticos en telefonía móvil).',
+          'Trabajos de fusionado de fibra óptica.',
+          'Trabajos en salas de equipos.',
+          'Manejo manual de cargas.',
+          'Trabajos en vía pública y seguridad vial.',
+          'Consignas de actuación ante emergencias y accidentes.',
+          'Protocolo PAS (P.A.S.).'
+        ],
+        practice: [
+          'Especialidad a elegir según necesidades reales del operario.',
+          'Aplicación práctica de identificaciones de origen y causas de riesgos.',
+          'Uso práctico de protecciones colectivas.',
+          'Uso práctico de protecciones individuales.'
+        ]
+      }
+    ],
+    [
+      'Riesgo Eléctrico Telco',
+      {
+        theory: [
+          'Definición de los trabajos.',
+          'Técnicas preventivas específicas.',
+          'Evaluación de riesgos y plan de seguridad y salud.',
+          'Protecciones colectivas (colocación, usos, obligaciones y mantenimiento).',
+          'Protecciones individuales (colocación, usos, obligaciones y mantenimiento).',
+          'Riesgo eléctrico.',
+          'Caída de personas al mismo nivel.',
+          'Caída de personas a distinto nivel.',
+          'Espacios confinados.',
+          'Riesgos de protecciones de partículas, golpes y cortes.',
+          'Riesgos biológicos.',
+          'Riesgos químicos.',
+          'Iluminación, ruido, vibraciones, condiciones climatológicas.',
+          'Radiaciones no ionizantes (campos electromagnéticos en telefonía móvil).',
+          'Trabajos de fusionado de fibra óptica.',
+          'Trabajos en salas de equipos.',
+          'Manejo manual de cargas.',
+          'Trabajos en vía pública y seguridad vial.',
+          'Consignas de actuación ante emergencias y accidentes.',
+          'Protocolo PAS.'
+        ],
+        practice: [
+          'Detectar situaciones con riesgo eléctrico.',
+          'Operar sin sobreexposición eléctrica, aplicando medidas correctas según tensión presente.'
+        ]
+      }
     ]
   ];
 
