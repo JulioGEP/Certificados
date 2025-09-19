@@ -20,6 +20,7 @@
   const FOOTER_LEFT_ADDITIONAL_OFFSET = 20;
   const FOOTER_BASELINE_PADDING = 18;
   const BACKGROUND_MARGIN_BLEED = 20;
+  const LOGO_VERTICAL_OFFSET_RATIO = 0.05;
 
   const PAGE_DIMENSIONS = {
     width: 841.89,
@@ -96,7 +97,7 @@
     return [
       {
         columns,
-        columnGap: 18,
+        columnGap: 12,
         margin: [0, 4, 0, 12]
       }
     ];
@@ -459,13 +460,13 @@
         margin: [0, 0, 0, 4]
       },
       listItem: {
-        fontSize: 9,
-        lineHeight: 1.3,
+        fontSize: 8,
+        lineHeight: 1.2,
         margin: [0, 0, 0, 3]
       },
       theoryListItem: {
-        fontSize: 8.5,
-        lineHeight: 1.25,
+        fontSize: 7.5,
+        lineHeight: 1.15,
         margin: [0, 0, 0, 3]
       }
     };
@@ -563,7 +564,8 @@
         );
         const logoWidth = Math.min(backgroundWidth * 0.6, 200);
         const logoHeight = logoWidth * IMAGE_ASPECT_RATIOS.logo;
-        const logoY = Math.max(0, (pageHeight - logoHeight) / 2);
+        const logoVerticalOffset = pageHeight * LOGO_VERTICAL_OFFSET_RATIO;
+        const logoY = Math.max(0, (pageHeight - logoHeight) / 2 - logoVerticalOffset);
         const logoX = backgroundX + (backgroundWidth - logoWidth) / 2;
 
         return [
