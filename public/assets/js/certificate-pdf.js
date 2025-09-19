@@ -190,25 +190,49 @@
 
     const theoryItems = Array.isArray(details.theory) ? details.theory : [];
     const practiceItems = Array.isArray(details.practice) ? details.practice : [];
-    const content = [];
+    const columns = [];
 
     if (theoryItems.length) {
-      content.push({ text: 'Parte teórica', style: 'sectionHeading' });
-      content.push({
-        ul: theoryItems.map((item) => ({ text: item, style: 'listItem' })),
-        margin: [0, 0, 0, practiceItems.length ? 10 : 12]
+      columns.push({
+        width: '*',
+        stack: [
+          { text: 'Parte teórica', style: 'sectionHeading' },
+          {
+            ul: theoryItems.map((item) => ({ text: item, style: 'listItem' })),
+            margin: [0, 2, 0, 0]
+          }
+        ]
       });
     }
 
     if (practiceItems.length) {
-      content.push({ text: 'Parte práctica', style: 'sectionHeading' });
-      content.push({
-        ul: practiceItems.map((item) => ({ text: item, style: 'listItem' })),
-        margin: [0, 0, 0, 12]
+      columns.push({
+        width: '*',
+        stack: [
+          { text: 'Parte práctica', style: 'sectionHeading' },
+          {
+            ul: practiceItems.map((item) => ({ text: item, style: 'listItem' })),
+            margin: [0, 2, 0, 0]
+          }
+        ]
       });
     }
 
-    return content;
+    if (!columns.length) {
+      return [];
+    }
+
+    if (columns.length === 1) {
+      columns.push({ width: '*', text: '', margin: [0, 0, 0, 0] });
+    }
+
+    return [
+      {
+        columns,
+        columnGap: 18,
+        margin: [0, 4, 0, 12]
+      }
+    ];
   }
 
   function getCachedAsset(key) {
@@ -529,43 +553,43 @@
   function buildDocStyles() {
     return {
       bodyText: {
-        fontSize: 12,
-        lineHeight: 1.4
+        fontSize: 10,
+        lineHeight: 1.35
       },
       introText: {
-        fontSize: 12,
-        lineHeight: 1.45,
-        margin: [0, 0, 0, 10]
+        fontSize: 10,
+        lineHeight: 1.35,
+        margin: [0, 0, 0, 8]
       },
       certificateTitle: {
-        fontSize: 30,
+        fontSize: 26,
         bold: true,
         color: '#c4143c',
         letterSpacing: 3,
-        margin: [0, 8, 0, 10]
-      },
-      highlighted: {
-        fontSize: 14,
-        bold: true,
         margin: [0, 8, 0, 8]
       },
-      trainingName: {
-        fontSize: 18,
+      highlighted: {
+        fontSize: 12,
         bold: true,
-        margin: [0, 14, 0, 0]
+        margin: [0, 6, 0, 6]
+      },
+      trainingName: {
+        fontSize: 16,
+        bold: true,
+        margin: [0, 12, 0, 0]
       },
       contentSectionTitle: {
-        fontSize: 14,
+        fontSize: 12,
         bold: true,
-        margin: [0, 16, 0, 8]
+        margin: [0, 12, 0, 6]
       },
       sectionHeading: {
-        fontSize: 13,
+        fontSize: 11,
         bold: true,
-        margin: [0, 6, 0, 4]
+        margin: [0, 0, 0, 4]
       },
       listItem: {
-        margin: [0, 0, 0, 4]
+        margin: [0, 0, 0, 3]
       }
     };
   }
@@ -669,14 +693,14 @@
       },
       content: [
         {
-          margin: [0, 12, 0, 0],
+          margin: [0, 8, 0, 0],
           stack: contentStack
         }
       ],
       styles: buildDocStyles(),
       defaultStyle: {
-        fontSize: 12,
-        lineHeight: 1.45,
+        fontSize: 10,
+        lineHeight: 1.35,
         color: '#1f274d',
         font: 'Poppins'
       },
