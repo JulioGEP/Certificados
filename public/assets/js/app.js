@@ -6,6 +6,7 @@
     { field: 'apellido', label: 'Apellidos', type: 'text', placeholder: 'Apellidos del alumno' },
     { field: 'dni', label: 'DNI / NIE', type: 'text', placeholder: 'Documento' },
     { field: 'fecha', label: 'Fecha', type: 'date' },
+    { field: 'segundaFecha', label: '2ª Fecha', type: 'date' },
     { field: 'lugar', label: 'Lugar', type: 'text', placeholder: 'Sede de la formación' },
     { field: 'duracion', label: 'Duración', type: 'number', placeholder: 'Horas' },
     { field: 'cliente', label: 'Cliente', type: 'text', placeholder: 'Empresa' },
@@ -89,6 +90,8 @@
       if (Array.isArray(parsed)) {
         state.rows = parsed.map((row) => {
           const hydratedRow = { ...createEmptyRow(), ...row };
+          hydratedRow.fecha = normaliseDateValue(hydratedRow.fecha);
+          hydratedRow.segundaFecha = normaliseDateValue(hydratedRow.segundaFecha);
           if (hydratedRow.duracion === undefined || hydratedRow.duracion === null || hydratedRow.duracion === '') {
             const duration = getTrainingDuration(hydratedRow.formacion);
             if (duration) {
@@ -120,6 +123,7 @@
       dni: '',
       documentType: '',
       fecha: '',
+      segundaFecha: '',
       lugar: '',
       duracion: '',
       cliente: '',
@@ -184,7 +188,7 @@
               applyTrainingDuration(index, event.target.value);
             }
           });
-          if (column.field === 'fecha') {
+          if (column.type === 'date') {
             input.addEventListener('change', (event) => {
               const { value } = event.target;
               updateRowValue(index, column.field, value);
@@ -556,6 +560,7 @@
       ...createEmptyRow(),
       presupuesto: dealId,
       fecha: normaliseDateValue(data.trainingDate),
+      segundaFecha: normaliseDateValue(data.secondTrainingDate),
       lugar: data.trainingLocation || '',
       duracion: getTrainingDuration(data.trainingName),
       cliente: data.clientName || '',

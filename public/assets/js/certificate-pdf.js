@@ -15,6 +15,12 @@
     logo: 382 / 827
   };
 
+  const DATE_PART_FORMATTERS = {
+    day: new Intl.DateTimeFormat('es-ES', { day: 'numeric' }),
+    month: new Intl.DateTimeFormat('es-ES', { month: 'long' }),
+    year: new Intl.DateTimeFormat('es-ES', { year: 'numeric' })
+  };
+
   const assetCache = new Map();
 
   function getCachedAsset(key) {
@@ -91,6 +97,54 @@
     return formatter.format(parsed);
   }
 
+  function extractDateParts(value) {
+    const normalised = normaliseText(value);
+    if (!normalised) {
+      return null;
+    }
+
+    const parsed = new Date(normalised);
+    if (Number.isNaN(parsed.getTime())) {
+      return null;
+    }
+
+    return {
+      day: DATE_PART_FORMATTERS.day.format(parsed),
+      month: DATE_PART_FORMATTERS.month.format(parsed),
+      year: DATE_PART_FORMATTERS.year.format(parsed)
+    };
+  }
+
+  function buildTrainingDateText(primaryValue, secondaryValue) {
+    const primaryText = formatTrainingDate(primaryValue);
+    const secondaryNormalised = normaliseText(secondaryValue);
+
+    if (!secondaryNormalised) {
+      return primaryText;
+    }
+
+    const secondaryText = formatTrainingDate(secondaryValue);
+    const primaryParts = extractDateParts(primaryValue);
+    const secondaryParts = extractDateParts(secondaryValue);
+
+    if (primaryParts && secondaryParts) {
+      const sameMonth = primaryParts.month === secondaryParts.month && primaryParts.year === secondaryParts.year;
+      const sameDay = sameMonth && primaryParts.day === secondaryParts.day;
+
+      if (sameDay) {
+        return primaryText;
+      }
+
+      if (sameMonth) {
+        return `${primaryParts.day} y ${secondaryParts.day} de ${primaryParts.month} de ${primaryParts.year}`;
+      }
+
+      return `${primaryText} y ${secondaryText}`;
+    }
+
+    return `${primaryText} y ${secondaryText}`;
+  }
+
   function formatLocation(value) {
     return normaliseText(value) || '________';
   }
@@ -165,7 +219,7 @@
     const pageMargins = [140, 70, 170, 110];
     const fullName = buildFullName(row);
     const documentSentence = buildDocumentSentence(row);
-    const trainingDate = formatTrainingDate(row.fecha);
+    const trainingDateText = buildTrainingDateText(row.fecha, row.segundaFecha);
     const location = formatLocation(row.lugar);
     const duration = formatDuration(row.duracion);
     const trainingName = formatTrainingName(row.formacion);
@@ -178,7 +232,7 @@
       { text: 'CERTIFICADO', style: 'certificateTitle' },
       { text: `A nombre del alumno/a ${fullName}`, style: 'bodyText' },
       {
-        text: `${documentSentence}, quien en fecha ${trainingDate} y en ${location}`,
+        text: `${documentSentence}, quien en fecha ${trainingDateText} y en ${location}`,
         style: 'bodyText'
       },
       {
