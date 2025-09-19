@@ -27,7 +27,7 @@
 
   const DEFAULT_DETAILS_ENTRIES = [
     [
-      'Pack Emergencias - Extinción de incendios básico y primeros auxilios',
+      'Pack Emergencias',
       {
         theory: [
           'Proceso de la combustión.',
