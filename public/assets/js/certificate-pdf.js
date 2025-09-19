@@ -15,8 +15,10 @@
     logo: 382 / 827
   };
 
-  const SIDEBAR_WIDTH_REDUCTION = 0.5;
-  const FOOTER_WIDTH_REDUCTION = 0.8;
+  const SIDEBAR_WIDTH_REDUCTION = 0.55;
+  const FOOTER_WIDTH_REDUCTION = 0.96;
+  const FOOTER_LEFT_ADDITIONAL_OFFSET = 20;
+  const BACKGROUND_MARGIN_BLEED = 20;
 
   const PAGE_DIMENSIONS = {
     width: 841.89,
@@ -311,18 +313,22 @@
     return normaliseText(value) || 'Nombre de la formación';
   }
 
-  function calculateFooterGeometry(pageWidth, pageHeight, pageMargins) {
+  function calculateSidebarWidth(pageWidth) {
     const baseSidebarWidth = Math.min(70, pageWidth * 0.08);
-    const sidebarWidth = baseSidebarWidth * 0.85 * SIDEBAR_WIDTH_REDUCTION;
+    return baseSidebarWidth * 0.85 * SIDEBAR_WIDTH_REDUCTION;
+  }
+
+  function calculateFooterGeometry(pageWidth, pageHeight, pageMargins) {
+    const sidebarWidth = calculateSidebarWidth(pageWidth);
     const footerBaseWidth = Math.min(pageWidth - 40, 780);
-    const footerMinLeft = Math.max(0, sidebarWidth + 18);
+    const footerMinLeft = Math.max(0, sidebarWidth + 18 + FOOTER_LEFT_ADDITIONAL_OFFSET);
     const footerMaxWidth = Math.max(0, pageWidth - footerMinLeft - 30);
     const footerWidthBase = Math.min(footerBaseWidth * 0.8, footerMaxWidth);
     const footerWidth = footerWidthBase * FOOTER_WIDTH_REDUCTION;
     const footerHeight = footerWidth * IMAGE_ASPECT_RATIOS.footer;
     const bottomLift = pageMargins[3] * 0.1;
     const footerY = Math.max(0, pageHeight - footerHeight - bottomLift);
-    return { footerY, footerMinLeft };
+    return { footerY, footerMinLeft, footerWidth, footerHeight };
   }
 
   function buildTrainerBlock(row, geometry, pageMargins) {
@@ -433,22 +439,21 @@
       pageSize: 'A4',
       pageMargins,
       background: function (currentPage, pageSize) {
-        const pageWidth = pageSize.width || 841.89;
-        const pageHeight = pageSize.height || 595.28;
-        const baseSidebarWidth = Math.min(70, pageWidth * 0.08);
-        const sidebarWidth = baseSidebarWidth * 0.85 * SIDEBAR_WIDTH_REDUCTION;
+        const pageWidth = pageSize.width || PAGE_DIMENSIONS.width;
+        const pageHeight = pageSize.height || PAGE_DIMENSIONS.height;
+        const sidebarWidth = calculateSidebarWidth(pageWidth);
         const backgroundWidth = Math.min(320, pageWidth * 0.35);
         const backgroundX = pageWidth - backgroundWidth + backgroundWidth * 0.12;
-        const backgroundHeight = backgroundWidth * IMAGE_ASPECT_RATIOS.background;
-        const backgroundY = (pageHeight - backgroundHeight) / 2;
-        const footerBaseWidth = Math.min(pageWidth - 40, 780);
-        const footerMinLeft = Math.max(0, sidebarWidth + 18);
-        const footerMaxWidth = Math.max(0, pageWidth - footerMinLeft - 30);
-        const footerWidthBase = Math.min(footerBaseWidth * 0.8, footerMaxWidth);
-        const footerWidth = footerWidthBase * FOOTER_WIDTH_REDUCTION;
-        const footerHeight = footerWidth * IMAGE_ASPECT_RATIOS.footer;
-        const bottomLift = pageMargins[3] * 0.1;
-        const footerY = Math.max(0, pageHeight - footerHeight - bottomLift);
+        const backgroundBaseHeight = backgroundWidth * IMAGE_ASPECT_RATIOS.background;
+        const topBleed = (pageMargins[1] || 0) + BACKGROUND_MARGIN_BLEED;
+        const bottomBleed = (pageMargins[3] || 0) + BACKGROUND_MARGIN_BLEED;
+        const backgroundHeight = backgroundBaseHeight + topBleed + bottomBleed;
+        const backgroundY = (pageHeight - backgroundBaseHeight) / 2 - topBleed;
+        const { footerMinLeft, footerWidth, footerY } = calculateFooterGeometry(
+          pageWidth,
+          pageHeight,
+          pageMargins
+        );
         const logoWidth = Math.min(backgroundWidth * 0.6, 200);
         const logoHeight = logoWidth * IMAGE_ASPECT_RATIOS.logo;
         const logoY = Math.max(0, (pageHeight - logoHeight) / 2);
@@ -464,6 +469,7 @@
           {
             image: backgroundImage,
             width: backgroundWidth,
+            height: backgroundHeight,
             absolutePosition: { x: backgroundX, y: backgroundY }
           },
           {
