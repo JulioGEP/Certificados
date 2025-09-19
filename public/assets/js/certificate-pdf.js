@@ -21,6 +21,13 @@
   const FOOTER_BASELINE_PADDING = 18;
   const BACKGROUND_MARGIN_BLEED = 20;
   const LOGO_VERTICAL_OFFSET_RATIO = 0.05;
+  const FONT_SIZE_REDUCTION = 1;
+  const LINE_HEIGHT_REDUCTION = 0.5;
+  const MIN_LINE_HEIGHT = 0.7;
+  const PRACTICE_COLUMN_SHIFT_RATIO = 0.1;
+  const BACKGROUND_HORIZONTAL_SHIFT_RATIO = 0.15;
+  const BACKGROUND_VERTICAL_SHIFT_RATIO = 0.05;
+  const LOGO_HORIZONTAL_SHIFT_RATIO = 0.15;
 
   const PAGE_DIMENSIONS = {
     width: 841.89,
@@ -51,7 +58,18 @@
   const assetCache = new Map();
   const trainingTemplates = global.trainingTemplates || null;
 
-  function buildTrainingDetailsContent(details) {
+  function adjustFontSize(size) {
+    return typeof size === 'number' ? size - FONT_SIZE_REDUCTION : size;
+  }
+
+  function adjustLineHeight(value) {
+    if (typeof value !== 'number') {
+      return value;
+    }
+    return Math.max(MIN_LINE_HEIGHT, value - LINE_HEIGHT_REDUCTION);
+  }
+
+  function buildTrainingDetailsContent(details, options = {}) {
     if (!details) {
       return [];
     }
@@ -59,6 +77,8 @@
     const theoryItems = Array.isArray(details.theory) ? details.theory : [];
     const practiceItems = Array.isArray(details.practice) ? details.practice : [];
     const columns = [];
+    const practiceColumnShift =
+      typeof options.practiceColumnShift === 'number' ? options.practiceColumnShift : 0;
 
     if (theoryItems.length) {
       columns.push({
@@ -76,6 +96,7 @@
     if (practiceItems.length) {
       columns.push({
         width: '*',
+        margin: practiceColumnShift ? [-practiceColumnShift, 0, 0, 0] : [0, 0, 0, 0],
         stack: [
           { text: 'Parte práctica', style: 'sectionHeading' },
           {
@@ -401,7 +422,7 @@
 
     return {
       text: label,
-      fontSize: 9,
+      fontSize: adjustFontSize(9),
       color: '#1f274d',
       absolutePosition: { x, y },
       margin: [0, 0, 0, 0]
@@ -424,49 +445,49 @@
   function buildDocStyles() {
     return {
       bodyText: {
-        fontSize: 10,
-        lineHeight: 1.35
+        fontSize: adjustFontSize(10),
+        lineHeight: adjustLineHeight(1.35)
       },
       introText: {
-        fontSize: 10,
-        lineHeight: 1.35,
+        fontSize: adjustFontSize(10),
+        lineHeight: adjustLineHeight(1.35),
         margin: [0, 0, 0, 8]
       },
       certificateTitle: {
-        fontSize: 26,
+        fontSize: adjustFontSize(26),
         bold: true,
         color: '#c4143c',
         letterSpacing: 3,
         margin: [0, 8, 0, 8]
       },
       highlighted: {
-        fontSize: 12,
+        fontSize: adjustFontSize(12),
         bold: true,
         margin: [0, 6, 0, 6]
       },
       trainingName: {
-        fontSize: 16,
+        fontSize: adjustFontSize(16),
         bold: true,
         margin: [0, 12, 0, 0]
       },
       contentSectionTitle: {
-        fontSize: 12,
+        fontSize: adjustFontSize(12),
         bold: true,
         margin: [0, 12, 0, 6]
       },
       sectionHeading: {
-        fontSize: 11,
+        fontSize: adjustFontSize(11),
         bold: true,
         margin: [0, 0, 0, 4]
       },
       listItem: {
-        fontSize: 8,
-        lineHeight: 1.2,
+        fontSize: adjustFontSize(8),
+        lineHeight: adjustLineHeight(1.2),
         margin: [0, 0, 0, 3]
       },
       theoryListItem: {
-        fontSize: 7.5,
-        lineHeight: 1.15,
+        fontSize: adjustFontSize(7.5),
+        lineHeight: adjustLineHeight(1.15),
         margin: [0, 0, 0, 3]
       }
     };
@@ -535,7 +556,10 @@
       { text: trainingName, style: 'trainingName' }
     ];
 
-    const trainingDetailsContent = buildTrainingDetailsContent(trainingDetails);
+    const availableContentWidth = Math.max(0, pageWidth - pageMargins[0] - pageMargins[2]);
+    const trainingDetailsContent = buildTrainingDetailsContent(trainingDetails, {
+      practiceColumnShift: availableContentWidth * PRACTICE_COLUMN_SHIFT_RATIO
+    });
     if (trainingDetailsContent.length) {
       contentStack.push({ text: 'Contenidos de la formación', style: 'contentSectionTitle' });
       contentStack.push(...trainingDetailsContent);
@@ -551,12 +575,14 @@
         const pageHeight = pageSize.height || PAGE_DIMENSIONS.height;
         const sidebarWidth = calculateSidebarWidth(pageWidth);
         const backgroundWidth = Math.min(320, pageWidth * 0.35);
-        const backgroundX = pageWidth - backgroundWidth + backgroundWidth * 0.12;
+        const backgroundBaseX = pageWidth - backgroundWidth + backgroundWidth * 0.12;
+        const backgroundX = backgroundBaseX + backgroundWidth * BACKGROUND_HORIZONTAL_SHIFT_RATIO;
         const backgroundBaseHeight = backgroundWidth * IMAGE_ASPECT_RATIOS.background;
         const topBleed = (pageMargins[1] || 0) + BACKGROUND_MARGIN_BLEED;
         const bottomBleed = (pageMargins[3] || 0) + BACKGROUND_MARGIN_BLEED;
         const backgroundHeight = backgroundBaseHeight + topBleed + bottomBleed;
-        const backgroundY = (pageHeight - backgroundBaseHeight) / 2 - topBleed;
+        const backgroundBaseY = (pageHeight - backgroundBaseHeight) / 2 - topBleed;
+        const backgroundY = backgroundBaseY - backgroundHeight * BACKGROUND_VERTICAL_SHIFT_RATIO;
         const { footerMinLeft, footerWidth, footerY } = calculateFooterGeometry(
           pageWidth,
           pageHeight,
@@ -566,7 +592,8 @@
         const logoHeight = logoWidth * IMAGE_ASPECT_RATIOS.logo;
         const logoVerticalOffset = pageHeight * LOGO_VERTICAL_OFFSET_RATIO;
         const logoY = Math.max(0, (pageHeight - logoHeight) / 2 - logoVerticalOffset);
-        const logoX = backgroundX + (backgroundWidth - logoWidth) / 2;
+        const logoBaseX = backgroundX + (backgroundWidth - logoWidth) / 2;
+        const logoX = logoBaseX + logoWidth * LOGO_HORIZONTAL_SHIFT_RATIO;
 
         return [
           {
@@ -601,8 +628,8 @@
       ],
       styles: buildDocStyles(),
       defaultStyle: {
-        fontSize: 10,
-        lineHeight: 1.35,
+        fontSize: adjustFontSize(10),
+        lineHeight: adjustLineHeight(1.35),
         color: '#1f274d',
         font: 'Poppins'
       },
