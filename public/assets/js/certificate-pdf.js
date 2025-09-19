@@ -18,6 +18,7 @@
   const SIDEBAR_WIDTH_REDUCTION = 0.55;
   const FOOTER_WIDTH_REDUCTION = 0.96;
   const FOOTER_LEFT_ADDITIONAL_OFFSET = 20;
+  const FOOTER_BASELINE_PADDING = 18;
   const BACKGROUND_MARGIN_BLEED = 20;
 
   const PAGE_DIMENSIONS = {
@@ -374,7 +375,10 @@
   function calculateFooterGeometry(pageWidth, pageHeight, pageMargins) {
     const sidebarWidth = calculateSidebarWidth(pageWidth);
     const footerBaseWidth = Math.min(pageWidth - 40, 780);
-    const footerMinLeft = Math.max(0, sidebarWidth + 18 + FOOTER_LEFT_ADDITIONAL_OFFSET);
+    const footerMinLeft = Math.max(
+      0,
+      sidebarWidth + FOOTER_BASELINE_PADDING + FOOTER_LEFT_ADDITIONAL_OFFSET
+    );
     const footerMaxWidth = Math.max(0, pageWidth - footerMinLeft - 30);
     const footerWidthBase = Math.min(footerBaseWidth * 0.8, footerMaxWidth);
     const footerWidth = footerWidthBase * FOOTER_WIDTH_REDUCTION;
@@ -455,11 +459,13 @@
         margin: [0, 0, 0, 4]
       },
       listItem: {
+        fontSize: 9,
+        lineHeight: 1.3,
         margin: [0, 0, 0, 3]
       },
       theoryListItem: {
-        fontSize: 9,
-        lineHeight: 1.2,
+        fontSize: 8.5,
+        lineHeight: 1.25,
         margin: [0, 0, 0, 3]
       }
     };
@@ -474,7 +480,27 @@
       getCachedAsset('logo')
     ]);
 
-    const pageMargins = [105, 40, 160, 100];
+    const referencePageMargins = [105, 40, 160, 100];
+    const pageWidth = PAGE_DIMENSIONS.width;
+    const pageHeight = PAGE_DIMENSIONS.height;
+    const leftMargin = Math.max(
+      0,
+      calculateSidebarWidth(pageWidth) + FOOTER_BASELINE_PADDING + FOOTER_LEFT_ADDITIONAL_OFFSET
+    );
+    const baseContentWidth = pageWidth - referencePageMargins[0] - referencePageMargins[2];
+    const contentWidthAdjustment = 15;
+    const adjustedContentWidth = Math.max(0, baseContentWidth - contentWidthAdjustment);
+    const minimumRightMargin = referencePageMargins[2] + 40;
+    const rightMargin = Math.max(
+      minimumRightMargin,
+      pageWidth - leftMargin - adjustedContentWidth
+    );
+    const pageMargins = [
+      leftMargin,
+      referencePageMargins[1],
+      rightMargin,
+      referencePageMargins[3]
+    ];
     const fullName = buildFullName(row);
     const documentSentence = buildDocumentSentence(row);
     const trainingDate = formatTrainingDateRange(row.fecha, row.segundaFecha);
@@ -487,8 +513,6 @@
     const trainingDetails = trainingTemplates
       ? trainingTemplates.getTrainingDetails(row.formacion)
       : null;
-    const pageWidth = PAGE_DIMENSIONS.width;
-    const pageHeight = PAGE_DIMENSIONS.height;
     const footerGeometry = calculateFooterGeometry(pageWidth, pageHeight, pageMargins);
     const trainerBlock = buildTrainerBlock(row, footerGeometry, pageMargins);
 
