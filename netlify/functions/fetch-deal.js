@@ -59,7 +59,9 @@ exports.handler = async (event) => {
       });
     }
 
-    const trainingDate = deal[TRAINING_DATE_FIELD] || '';
+    const { primaryDate: trainingDate, secondaryDate: trainingSecondDate } = normaliseTrainingDates(
+      deal[TRAINING_DATE_FIELD]
+    );
     const rawTrainingLocation = await resolveDealFieldOptionValue(
       baseUrl,
       apiToken,
@@ -112,7 +114,8 @@ exports.handler = async (event) => {
         clientName,
         contactName,
         contactEmail,
-        students
+        students,
+        secondaryTrainingDate: trainingSecondDate
       }
     });
   } catch (error) {
@@ -317,6 +320,180 @@ async function fetchAllDealFields(baseUrl, apiToken) {
   })();
 
   return dealFieldsPromise;
+}
+
+function normaliseTrainingDates(rawValue) {
+  const result = { primaryDate: '', secondaryDate: '' };
+  const visited = new Set();
+
+  function addDate(dateString) {
+    if (!dateString) {
+      return;
+    }
+    if (result.primaryDate === dateString || result.secondaryDate === dateString) {
+      return;
+    }
+    if (!result.primaryDate) {
+      result.primaryDate = dateString;
+      return;
+    }
+    if (!result.secondaryDate) {
+      result.secondaryDate = dateString;
+    }
+  }
+
+  function collect(value) {
+    if (result.primaryDate && result.secondaryDate) {
+      return;
+    }
+
+    if (value === null || value === undefined) {
+      return;
+    }
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return;
+      }
+
+      const isoMatches = trimmed.match(/\d{4}-\d{2}-\d{2}/g);
+      if (isoMatches && isoMatches.length) {
+        isoMatches.forEach(addDate);
+        const leftover = trimmed.replace(/\d{4}-\d{2}-\d{2}/g, '').trim();
+        if (!leftover) {
+          return;
+        }
+      }
+
+      const europeanMatches = trimmed.match(/\d{2}\/\d{2}\/\d{4}/g);
+      if (europeanMatches && europeanMatches.length) {
+        europeanMatches.forEach((match) => {
+          const iso = convertEuropeanDateToIso(match);
+          if (iso) {
+            addDate(iso);
+          }
+        });
+        const leftover = trimmed.replace(/\d{2}\/\d{2}\/\d{4}/g, '').trim();
+        if (!leftover) {
+          return;
+        }
+      }
+
+      const parsed = parseDateInput(trimmed);
+      if (parsed) {
+        addDate(parsed);
+      }
+      return;
+    }
+
+    if (value instanceof Date || (typeof value === 'number' && Number.isFinite(value))) {
+      const parsed = parseDateInput(value);
+      if (parsed) {
+        addDate(parsed);
+      }
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach(collect);
+      return;
+    }
+
+    if (typeof value === 'object') {
+      if (visited.has(value)) {
+        return;
+      }
+      visited.add(value);
+
+      const primaryKeys = ['start_date', 'startDate', 'start', 'from', 'initial', 'first', 'primary', 'value', 'date'];
+      const secondaryKeys = ['end_date', 'endDate', 'end', 'to', 'final', 'second', 'finish'];
+
+      primaryKeys.forEach((key) => {
+        if (Object.prototype.hasOwnProperty.call(value, key)) {
+          collect(value[key]);
+        }
+      });
+
+      secondaryKeys.forEach((key) => {
+        if (Object.prototype.hasOwnProperty.call(value, key)) {
+          collect(value[key]);
+        }
+      });
+
+      Object.values(value).forEach(collect);
+    }
+  }
+
+  collect(rawValue);
+
+  return result;
+}
+
+function parseDateInput(value) {
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) {
+      return '';
+    }
+    return value.toISOString().split('T')[0];
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return formatDateFromTimestamp(value);
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return '';
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
+      return convertEuropeanDateToIso(trimmed);
+    }
+
+    const numericValue = Number(trimmed);
+    if (!Number.isNaN(numericValue) && Number.isFinite(numericValue)) {
+      const numericDate = formatDateFromTimestamp(numericValue);
+      if (numericDate) {
+        return numericDate;
+      }
+    }
+
+    const parsed = new Date(trimmed);
+    if (Number.isNaN(parsed.getTime())) {
+      return '';
+    }
+    return parsed.toISOString().split('T')[0];
+  }
+
+  return '';
+}
+
+function formatDateFromTimestamp(value) {
+  if (!Number.isFinite(value)) {
+    return '';
+  }
+
+  const milliseconds = Math.abs(value) < 1e12 ? value * 1000 : value;
+  const parsed = new Date(milliseconds);
+  if (Number.isNaN(parsed.getTime())) {
+    return '';
+  }
+  return parsed.toISOString().split('T')[0];
+}
+
+function convertEuropeanDateToIso(value) {
+  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) {
+    return '';
+  }
+  const [, day, month, year] = match;
+  return `${year}-${month}-${day}`;
 }
 
 function mapTrainingLocation(rawLocation) {
