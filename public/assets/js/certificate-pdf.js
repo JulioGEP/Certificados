@@ -25,19 +25,19 @@
 
   const FONT_SOURCES = {
     'Poppins-Regular.ttf': [
-      'assets/fonts/poppins/Poppins-Regular.ttf',
+      'assets/certificados/Poppins-Regular.ttf',
       'https://cdn.jsdelivr.net/npm/@fontsource/poppins@5.0.17/files/poppins-latin-400-normal.ttf'
     ],
     'Poppins-Italic.ttf': [
-      'assets/fonts/poppins/Poppins-Italic.ttf',
+      'assets/certificados/Poppins-Italic.ttf',
       'https://cdn.jsdelivr.net/npm/@fontsource/poppins@5.0.17/files/poppins-latin-400-italic.ttf'
     ],
     'Poppins-SemiBold.ttf': [
-      'assets/fonts/poppins/Poppins-SemiBold.ttf',
+      'assets/certificados/Poppins-SemiBold.ttf',
       'https://cdn.jsdelivr.net/npm/@fontsource/poppins@5.0.17/files/poppins-latin-600-normal.ttf'
     ],
     'Poppins-SemiBoldItalic.ttf': [
-      'assets/fonts/poppins/Poppins-SemiBoldItalic.ttf',
+      'assets/certificados/Poppins-SemiBoldItalic.ttf',
       'https://cdn.jsdelivr.net/npm/@fontsource/poppins@5.0.17/files/poppins-latin-600-italic.ttf'
     ]
   };
