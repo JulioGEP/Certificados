@@ -178,8 +178,9 @@ body {
 }
 
 .table tbody td .document-wrapper .form-control {
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: 1 1 0%;
+  min-width: 12ch;
+  width: 100%;
 }
 
 .document-badge {
@@ -188,6 +189,25 @@ body {
   letter-spacing: 0.08em;
   flex-shrink: 0;
   white-space: nowrap;
+}
+
+#students-table th:nth-child(4),
+#students-table td[data-label='DNI / NIE'] {
+  min-width: 12ch;
+}
+
+#students-table th:nth-child(5),
+#students-table th:nth-child(6),
+#students-table td[data-label='Fecha'],
+#students-table td[data-label='2ª Fecha'] {
+  width: 11ch;
+}
+
+#students-table td[data-label='Fecha'] .form-control,
+#students-table td[data-label='2ª Fecha'] .form-control {
+  width: 100%;
+  max-width: 11ch;
+  min-width: 0;
 }
 
 .btn {
@@ -216,5 +236,10 @@ body {
 
   .table tbody td .form-control {
     min-width: 10rem;
+  }
+
+  #students-table td[data-label='Fecha'] .form-control,
+  #students-table td[data-label='2ª Fecha'] .form-control {
+    min-width: 0;
   }
 }
