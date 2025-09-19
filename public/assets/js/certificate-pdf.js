@@ -16,7 +16,7 @@
   };
 
   const SIDEBAR_WIDTH_REDUCTION = 0.55;
-  const FOOTER_WIDTH_REDUCTION = 0.96;
+  const FOOTER_WIDTH_REDUCTION = 0.816; // 15% size reduction applied to previous value
   const FOOTER_LEFT_ADDITIONAL_OFFSET = 20;
   const FOOTER_BASELINE_PADDING = 18;
   const BACKGROUND_MARGIN_BLEED = 20;
