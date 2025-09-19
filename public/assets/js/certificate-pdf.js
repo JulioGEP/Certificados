@@ -20,8 +20,8 @@
   const FOOTER_LEFT_ADDITIONAL_OFFSET = 20;
   const FOOTER_BASELINE_PADDING = 18;
   const BACKGROUND_MARGIN_BLEED = 20;
-  const LOGO_VERTICAL_OFFSET_RATIO = 0.05;
-  const FONT_SIZE_REDUCTION = 1;
+  const LOGO_VERTICAL_SHIFT_RATIO = 0.05;
+  const FONT_SIZE_ADJUSTMENT = 1;
   const LINE_HEIGHT_REDUCTION = 0.5;
   const MIN_LINE_HEIGHT = 0.7;
   const PRACTICE_COLUMN_SHIFT_RATIO = 0.1;
@@ -59,7 +59,7 @@
   const trainingTemplates = global.trainingTemplates || null;
 
   function adjustFontSize(size) {
-    return typeof size === 'number' ? size - FONT_SIZE_REDUCTION : size;
+    return typeof size === 'number' ? size + FONT_SIZE_ADJUSTMENT : size;
   }
 
   function adjustLineHeight(value) {
@@ -590,10 +590,10 @@
         );
         const logoWidth = Math.min(backgroundWidth * 0.6, 200);
         const logoHeight = logoWidth * IMAGE_ASPECT_RATIOS.logo;
-        const logoVerticalOffset = pageHeight * LOGO_VERTICAL_OFFSET_RATIO;
-        const logoY = Math.max(0, (pageHeight - logoHeight) / 2 - logoVerticalOffset);
+        const logoVerticalShift = pageHeight * LOGO_VERTICAL_SHIFT_RATIO;
+        const logoY = Math.max(0, (pageHeight - logoHeight) / 2 + logoVerticalShift);
         const logoBaseX = backgroundX + (backgroundWidth - logoWidth) / 2;
-        const logoX = logoBaseX + logoWidth * LOGO_HORIZONTAL_SHIFT_RATIO;
+        const logoX = logoBaseX - logoWidth * LOGO_HORIZONTAL_SHIFT_RATIO;
 
         return [
           {
