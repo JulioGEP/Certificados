@@ -48,6 +48,169 @@
 
   const assetCache = new Map();
 
+  function normaliseTrainingName(value) {
+    if (value === undefined || value === null) {
+      return '';
+    }
+    return String(value)
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+      .replace(/\s+/g, ' ');
+  }
+
+  function normaliseDetailItems(items) {
+    if (!Array.isArray(items)) {
+      return [];
+    }
+    return items
+      .map((item) => {
+        if (item === undefined || item === null) {
+          return '';
+        }
+        return String(item).trim();
+      })
+      .filter((text) => text !== '');
+  }
+
+  function normaliseTrainingDetails(details) {
+    if (!details || typeof details !== 'object') {
+      return { theory: [], practice: [] };
+    }
+    return {
+      theory: normaliseDetailItems(details.theory),
+      practice: normaliseDetailItems(details.practice)
+    };
+  }
+
+  const TRAINING_DETAILS_ENTRIES = [
+    [
+      'Pack Emergencias - Extinción de incendios básico y primeros auxilios',
+      {
+        theory: [
+          'Proceso de la combustión.',
+          'Clases de fuego.',
+          'Clasificación de combustible.',
+          'Propagación de un incendio.',
+          'Transferencia de calor.',
+          'Agentes extintores.',
+          'Mecanismos de extinción.',
+          'Protocolo de actuación (P.A.S.).',
+          'Valoración primaria.',
+          'Posiciones de espera y traslado (P.L.S.).',
+          'O.V.A.C.E. obstrucción vía aérea (Maniobra de Heimlich).'
+        ],
+        practice: [
+          'Reconocer diferentes tipos de extintores.',
+          'Trabajo en interior con extintor de polvo.',
+          'Extinción con CO₂ en armario eléctrico.',
+          'Extinción y cubrimiento con extintor hídrico.',
+          'Ejercicio/simulacro con diferentes grados de dificultad, corte de suministro, víctima consciente e inconsciente.',
+          'Apertura de puertas y comprobación de temperatura.'
+        ]
+      }
+    ],
+    [
+      'Trabajos en Altura',
+      {
+        theory: [
+          'Legislación y normativa vigente.',
+          'Medidas de protección preventiva.',
+          'Conocimientos generales de seguridad en altura.',
+          'Equipos de protección individual y colectiva.',
+          'Instalaciones horizontales y verticales.',
+          'Actuación en caso de emergencia.'
+        ],
+        practice: [
+          'Los nudos básicos y su realización.',
+          'Utilización de equipos de protección individual.',
+          'Utilización de los equipos de protección colectiva.',
+          'Instalación de líneas de vida horizontales y verticales.',
+          'Puntos de anclaje.',
+          'Técnicas de acceso y posicionamiento en altura.',
+          'Rescate de emergencia.'
+        ]
+      }
+    ],
+    [
+      'Trabajos Verticales',
+      {
+        theory: [
+          'Legislación y normativa vigente.',
+          'Medidas de protección preventiva.',
+          'Procedimientos de actuación y rescate.',
+          'Conocimientos generales sobre seguridad.',
+          'Equipos de protección individual y colectiva.',
+          'Sistemas de instalación vertical y horizontal.',
+          'Actuación en caso de emergencia y protocolo P.A.S.'
+        ],
+        practice: [
+          'Taller de nudos y anclajes.',
+          'Utilización y pruebas con los equipos de protección individual.',
+          'Montaje de instalaciones verticales.',
+          'Protección de las instalaciones.',
+          'Paso de nudos.',
+          'Ascenso y descenso con cuerdas, paso de nudos y cambios de cuerda.',
+          'Rescate de víctimas y evacuación segura.'
+        ]
+      }
+    ]
+  ];
+
+  const TRAINING_DETAILS_LOOKUP = TRAINING_DETAILS_ENTRIES.reduce((lookup, [name, details]) => {
+    const key = normaliseTrainingName(name);
+    if (!key || lookup.has(key)) {
+      return lookup;
+    }
+    lookup.set(key, normaliseTrainingDetails(details));
+    return lookup;
+  }, new Map());
+
+  function getTrainingDetails(trainingName) {
+    const key = normaliseTrainingName(trainingName);
+    if (!key) {
+      return null;
+    }
+    const details = TRAINING_DETAILS_LOOKUP.get(key);
+    if (!details) {
+      return null;
+    }
+    return {
+      theory: [...details.theory],
+      practice: [...details.practice]
+    };
+  }
+
+  function buildTrainingDetailsContent(details) {
+    if (!details) {
+      return [];
+    }
+
+    const theoryItems = Array.isArray(details.theory) ? details.theory : [];
+    const practiceItems = Array.isArray(details.practice) ? details.practice : [];
+    const content = [];
+
+    if (theoryItems.length) {
+      content.push({ text: 'Parte teórica', style: 'sectionHeading' });
+      content.push({
+        ul: theoryItems.map((item) => ({ text: item, style: 'listItem' })),
+        margin: [0, 0, 0, practiceItems.length ? 10 : 12]
+      });
+    }
+
+    if (practiceItems.length) {
+      content.push({ text: 'Parte práctica', style: 'sectionHeading' });
+      content.push({
+        ul: practiceItems.map((item) => ({ text: item, style: 'listItem' })),
+        margin: [0, 0, 0, 12]
+      });
+    }
+
+    return content;
+  }
+
   function getCachedAsset(key) {
     if (assetCache.has(key)) {
       return assetCache.get(key);
@@ -390,6 +553,19 @@
         fontSize: 18,
         bold: true,
         margin: [0, 14, 0, 0]
+      },
+      contentSectionTitle: {
+        fontSize: 14,
+        bold: true,
+        margin: [0, 16, 0, 8]
+      },
+      sectionHeading: {
+        fontSize: 13,
+        bold: true,
+        margin: [0, 6, 0, 4]
+      },
+      listItem: {
+        margin: [0, 0, 0, 4]
       }
     };
   }
@@ -410,6 +586,7 @@
     const location = formatLocation(row.lugar);
     const duration = formatDuration(row.duracion);
     const trainingName = formatTrainingName(row.formacion);
+    const trainingDetails = getTrainingDetails(row.formacion);
     const pageWidth = PAGE_DIMENSIONS.width;
     const pageHeight = PAGE_DIMENSIONS.height;
     const footerGeometry = calculateFooterGeometry(pageWidth, pageHeight, pageMargins);
@@ -430,9 +607,15 @@
         text: `ha superado, con una duración total de ${duration} horas, la formación de:`,
         style: 'bodyText'
       },
-      { text: trainingName, style: 'trainingName' },
-      { text: '\n\n', margin: [0, 0, 0, 0] }
+      { text: trainingName, style: 'trainingName' }
     ];
+
+    const trainingDetailsContent = buildTrainingDetailsContent(trainingDetails);
+    if (trainingDetailsContent.length) {
+      contentStack.push({ text: 'Contenidos de la formación', style: 'contentSectionTitle' });
+      contentStack.push(...trainingDetailsContent);
+    }
+    contentStack.push({ text: '\n', margin: [0, 0, 0, 0] });
 
     const docDefinition = {
       pageOrientation: 'landscape',
