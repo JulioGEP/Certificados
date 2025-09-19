@@ -48,6 +48,7 @@
     templatesModal: document.getElementById('training-templates-modal'),
     templateForm: document.getElementById('training-template-form'),
     templateSelector: document.getElementById('template-selector'),
+    deleteTemplateButton: document.getElementById('delete-template-button'),
     templateNameInput: document.getElementById('template-name'),
     templateTitleInput: document.getElementById('template-title'),
     templateDurationInput: document.getElementById('template-duration'),
@@ -93,6 +94,7 @@
       templatesModal,
       templateForm,
       templateSelector,
+      deleteTemplateButton,
       templateNameInput,
       templateTitleInput,
       templateDurationInput,
@@ -130,6 +132,10 @@
     templateSelector.addEventListener('change', handleTemplateSelectionChange);
     templateForm.addEventListener('submit', handleTemplateFormSubmit);
 
+    if (deleteTemplateButton) {
+      deleteTemplateButton.addEventListener('click', handleDeleteTemplateClick);
+    }
+
     if (addTheoryPoint) {
       addTheoryPoint.addEventListener('click', () => addTemplatePoint('theory'));
     }
@@ -152,6 +158,7 @@
 
     populateTemplateSelector(templateState.lastSelectedTemplateId);
     handleTemplateLibraryUpdated();
+    updateDeleteTemplateButtonState();
   }
 
   function openTemplatesModal() {
@@ -252,6 +259,8 @@
 
     renderTemplatePoints(theoryList, Array.isArray(payload.theory) ? payload.theory : []);
     renderTemplatePoints(practiceList, Array.isArray(payload.practice) ? payload.practice : []);
+
+    updateDeleteTemplateButtonState();
   }
 
   function renderTemplatePoints(container, items) {
@@ -346,6 +355,60 @@
       templateState.lastSelectedTemplateId = selectedTemplate.id;
       loadTemplateForm(selectedTemplate);
     }
+  }
+
+  function updateDeleteTemplateButtonState() {
+    const { deleteTemplateButton } = elements;
+    if (!deleteTemplateButton) {
+      return;
+    }
+
+    const currentId = templateState.currentTemplateId;
+    const canDelete = Boolean(
+      currentId &&
+        trainingTemplates &&
+        typeof trainingTemplates.isCustomTemplateId === 'function' &&
+        trainingTemplates.isCustomTemplateId(currentId)
+    );
+
+    deleteTemplateButton.disabled = !canDelete;
+    deleteTemplateButton.classList.toggle('d-none', !canDelete);
+  }
+
+  function handleDeleteTemplateClick() {
+    if (!trainingTemplates) {
+      return;
+    }
+
+    const templateId = templateState.currentTemplateId;
+    if (!templateId || !trainingTemplates.isCustomTemplateId(templateId)) {
+      return;
+    }
+
+    const template = trainingTemplates.getTemplateById(templateId);
+    const templateName = template && template.name ? template.name : '';
+    const confirmationMessage = templateName
+      ? `¿Seguro que quieres eliminar la plantilla "${templateName}"? Esta acción no se puede deshacer.`
+      : '¿Seguro que quieres eliminar la plantilla seleccionada? Esta acción no se puede deshacer.';
+
+    if (!window.confirm(confirmationMessage)) {
+      return;
+    }
+
+    const deleted = trainingTemplates.deleteTemplate(templateId);
+    if (!deleted) {
+      showAlert('danger', 'No se ha podido eliminar la plantilla.');
+      return;
+    }
+
+    if (templateState.lastSelectedTemplateId === templateId) {
+      templateState.lastSelectedTemplateId = '';
+    }
+
+    templateState.currentTemplateId = '';
+    populateTemplateSelector('');
+    resetTemplateForm();
+    showAlert('success', 'Plantilla eliminada correctamente.');
   }
 
   function handleTemplateFormSubmit(event) {
