@@ -268,6 +268,37 @@ body {
   border-radius: 999px;
 }
 
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  line-height: 1;
+  padding: 0.45rem 0.6rem;
+}
+
+.btn-icon.btn-sm {
+  padding: 0.35rem 0.45rem;
+}
+
+.btn-icon .icon {
+  display: block;
+  width: 1.1rem;
+  height: 1.1rem;
+  flex-shrink: 0;
+}
+
+.btn-icon .icon-google-drive {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+.btn-icon .icon-envelope,
+.btn-icon .icon-trash {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
 #table-body tr.empty-state td {
   text-align: center;
   padding: 3rem 1rem;
