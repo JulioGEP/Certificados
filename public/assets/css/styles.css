@@ -185,13 +185,13 @@ body {
 .table tbody td .document-wrapper {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.35rem;
   width: 100%;
 }
 
 .table tbody td .document-wrapper .form-control {
-  flex: 1 1 0%;
-  min-width: 12ch;
+  flex: 1 1 10ch;
+  min-width: 10ch;
   width: 100%;
 }
 
@@ -201,11 +201,12 @@ body {
   letter-spacing: 0.08em;
   flex-shrink: 0;
   white-space: nowrap;
+  padding: 0.2rem 0.45rem;
 }
 
 #students-table th:nth-child(4),
 #students-table td[data-label='DNI / NIE'] {
-  min-width: 12ch;
+  min-width: 10ch;
 }
 
 #students-table th:nth-child(5),
