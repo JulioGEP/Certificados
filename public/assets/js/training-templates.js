@@ -207,6 +207,133 @@
           'Operar sin sobreexposición eléctrica, aplicando medidas correctas según tensión presente.'
         ]
       }
+    ],
+    [
+      'Espacios Confinados',
+      {
+        theory: [
+          'Legislación y normativa vigente en espacios confinados.',
+          'Tipología de espacios confinados.',
+          'Riesgos de los espacios confinados: asfixia, incendio, explosión e intoxicación.',
+          'Los equipos de trabajo y protección individuales y colectivos.',
+          'Atmósferas peligrosas.',
+          'El recurso preventivo.',
+          'Documentación y permiso de trabajo.',
+          'Señalización en los espacios confinados.'
+        ],
+        practice: [
+          'Procedimientos de trabajo en espacios confinados.',
+          'Utilización y características de los equipos de trabajo.',
+          'Entrada y salida del espacio confinado.',
+          'Técnicas de progresión.',
+          'Rescate del accidentado en un espacio confinado.'
+        ]
+      }
+    ],
+    [
+      'Jefes de Emergencias',
+      {
+        theory: [
+          'Plan de emergencia.',
+          'Perfil del mando.',
+          'IEDO (identificación, evaluación, decisión, organización).',
+          'Comunicación.',
+          'Control CACE.',
+          'Funciones de los Equipos de emergencias.',
+          'Medios externos e internos.',
+          'Comunicaciones internas / externas.',
+          'Características del riesgo químico.',
+          'Fichas de seguridad y fichas de intervención.',
+          'Señalización de riesgo.',
+          'Equipos de protección personal.',
+          'Equipos de protección respiratoria.',
+          'Intervención en riesgo químico.',
+          'Emergencias médicas: Valoración primaria.',
+          'PLS, ABC, RCP, DEA, OVACE.'
+        ],
+        practice: [
+          'Montaje de equipos de respiración.',
+          'Técnicas de intervención con ejercicios/simulacros de actuación en incendio.',
+          'Activación IEDO.',
+          'Comunicaciones.',
+          'Gestión de recursos técnicos y humanos.',
+          'Toma de decisiones.',
+          'Rescate de víctima.',
+          'Extinción.',
+          'Ejercicios/simulacros de vertido/fuga.',
+          'Nivel de protección.',
+          'Zonificación.',
+          'Vestido / desvestido.',
+          'Intervención.',
+          'Descontaminación.'
+        ]
+      }
+    ],
+    [
+      'SVD y DEA',
+      {
+        theory: [
+          'Introducción.',
+          'Causas y lugares más comunes del paro cardiorrespiratorio.',
+          'La cadena de supervivencia.',
+          'Protocolo de actuación P.A.S.',
+          'Activación del sistema de emergencias médicas (SEM) (112).',
+          'Importancia de la R.C.P. de gran calidad.',
+          'DEA: utilización, seguridad del dispositivo y aspectos legales.',
+          'Algoritmos de actuación con y sin DEA del European Resuscitation Council.'
+        ],
+        practice: [
+          'Seguridad en el escenario.',
+          'Valoración de la conciencia.',
+          'Apertura vía aérea.',
+          'Valoración respiración.',
+          'Activación del 112.',
+          'Maniobras de RCP.',
+          'Uso y manejo del DEA.',
+          'Posición lateral de seguridad.',
+          'Simulaciones prácticas integradas de SVB con y sin DEA.',
+          'Evaluación.'
+        ]
+      }
+    ],
+    [
+      'Implantación de PAU',
+      {
+        theory: [
+          'Presentación del Plan de Emergencia.',
+          'Explicación de los diferentes escenarios.',
+          'Planteamiento de actuación en las posibles emergencias.',
+          'Dudas y preguntas sobre los puntos tratados.'
+        ],
+        practice: [
+          'Recorrido por el centro en cuestión para conocer cuáles son sus características.',
+          'Práctica simulacro de algunas de las emergencias detalladas en el PAU.',
+          'Simulacros con víctimas.'
+        ]
+      }
+    ],
+    [
+      'Primeros Auxilios',
+      {
+        theory: [
+          'Introducción a los primeros auxilios.',
+          'Protocolo de actuación (P.A.S.).',
+          'Atención y valoración inicial.',
+          'Evaluación de la víctima.',
+          'Posiciones de espera y traslado (P.L.S.).',
+          'O.V.A.C.E. obstrucción vía aérea (Maniobra de Heimlich).',
+          'Control de sangrado.',
+          'Quemaduras.'
+        ],
+        practice: [
+          'Protocolo de actuación P.A.S.',
+          'Valoración primaria (XABC).',
+          'Consciencia, hemorragia masiva, respiración, circulación.',
+          'Posiciones de espera y traslado.',
+          'Obstrucción vía aérea.',
+          'Reanimación cardiopulmonar.'
+        ]
+      }
     ]
   ];
 
