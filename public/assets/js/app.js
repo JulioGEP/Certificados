@@ -7,7 +7,7 @@
     'Isaac El Allaoui Algaba: Técnico Irata: 1/248469'
   ];
   const TABLE_COLUMNS = [
-    { field: 'presupuesto', label: 'Presupuesto', type: 'text', placeholder: 'ID del deal' },
+    { field: 'presupuesto', label: 'Presu', type: 'text', placeholder: 'ID del deal' },
     { field: 'nombre', label: 'Nombre', type: 'text', placeholder: 'Nombre del alumno' },
     { field: 'apellido', label: 'Apellidos', type: 'text', placeholder: 'Apellidos del alumno' },
     { field: 'dni', label: 'DNI / NIE', type: 'text', placeholder: 'Documento' },
