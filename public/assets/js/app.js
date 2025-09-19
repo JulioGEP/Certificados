@@ -14,7 +14,7 @@
     { field: 'fecha', label: 'Fecha', type: 'date' },
     { field: 'segundaFecha', label: '2ª Fecha', type: 'date' },
     { field: 'lugar', label: 'Lugar', type: 'text', placeholder: 'Sede de la formación' },
-    { field: 'duracion', label: 'Duración', type: 'number', placeholder: 'Horas' },
+    { field: 'duracion', label: 'Horas', type: 'number', placeholder: 'Horas' },
     { field: 'cliente', label: 'Cliente', type: 'text', placeholder: 'Empresa' },
     { field: 'formacion', label: 'Formación', type: 'text', placeholder: 'Título de la formación' },
     {
@@ -166,6 +166,9 @@
 
       TABLE_COLUMNS.forEach((column) => {
         const td = document.createElement('td');
+        if (column.field === 'duracion') {
+          td.classList.add('column-hours');
+        }
         td.dataset.label = column.label;
 
         if (column.field === 'dni') {
