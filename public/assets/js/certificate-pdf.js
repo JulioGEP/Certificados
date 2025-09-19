@@ -15,20 +15,31 @@
     logo: 382 / 827
   };
 
+  const SIDEBAR_WIDTH_REDUCTION = 0.5;
+  const FOOTER_WIDTH_REDUCTION = 0.8;
+
   const PAGE_DIMENSIONS = {
     width: 841.89,
     height: 595.28
   };
 
   const FONT_SOURCES = {
-    'Poppins-Regular.ttf':
-      'https://cdn.jsdelivr.net/npm/@fontsource/poppins@5.0.17/files/poppins-latin-400-normal.ttf',
-    'Poppins-Italic.ttf':
-      'https://cdn.jsdelivr.net/npm/@fontsource/poppins@5.0.17/files/poppins-latin-400-italic.ttf',
-    'Poppins-SemiBold.ttf':
-      'https://cdn.jsdelivr.net/npm/@fontsource/poppins@5.0.17/files/poppins-latin-600-normal.ttf',
-    'Poppins-SemiBoldItalic.ttf':
+    'Poppins-Regular.ttf': [
+      'assets/fonts/poppins/Poppins-Regular.ttf',
+      'https://cdn.jsdelivr.net/npm/@fontsource/poppins@5.0.17/files/poppins-latin-400-normal.ttf'
+    ],
+    'Poppins-Italic.ttf': [
+      'assets/fonts/poppins/Poppins-Italic.ttf',
+      'https://cdn.jsdelivr.net/npm/@fontsource/poppins@5.0.17/files/poppins-latin-400-italic.ttf'
+    ],
+    'Poppins-SemiBold.ttf': [
+      'assets/fonts/poppins/Poppins-SemiBold.ttf',
+      'https://cdn.jsdelivr.net/npm/@fontsource/poppins@5.0.17/files/poppins-latin-600-normal.ttf'
+    ],
+    'Poppins-SemiBoldItalic.ttf': [
+      'assets/fonts/poppins/Poppins-SemiBoldItalic.ttf',
       'https://cdn.jsdelivr.net/npm/@fontsource/poppins@5.0.17/files/poppins-latin-600-italic.ttf'
+    ]
   };
 
   let poppinsFontPromise = null;
@@ -102,14 +113,26 @@
       poppinsFontPromise = (async () => {
         try {
           const fontEntries = await Promise.all(
-            Object.entries(FONT_SOURCES).map(async ([name, url]) => {
-              try {
-                const data = await loadFontAsBase64(url);
-                return [name, data];
-              } catch (error) {
-                console.warn(`No se ha podido cargar la fuente Poppins (${name}).`, error);
-                return null;
+            Object.entries(FONT_SOURCES).map(async ([name, sources]) => {
+              const sourceList = Array.isArray(sources) ? sources : [sources];
+              let lastError = null;
+
+              for (const source of sourceList) {
+                try {
+                  const data = await loadFontAsBase64(source);
+                  if (source !== sourceList[0]) {
+                    console.info(
+                      `Se está usando la fuente Poppins (${name}) desde el origen alternativo: ${source}`
+                    );
+                  }
+                  return [name, data];
+                } catch (error) {
+                  lastError = error;
+                }
               }
+
+              console.warn(`No se ha podido cargar la fuente Poppins (${name}).`, lastError);
+              return null;
             })
           );
 
@@ -290,11 +313,12 @@
 
   function calculateFooterGeometry(pageWidth, pageHeight, pageMargins) {
     const baseSidebarWidth = Math.min(70, pageWidth * 0.08);
-    const sidebarWidth = baseSidebarWidth * 0.85;
+    const sidebarWidth = baseSidebarWidth * 0.85 * SIDEBAR_WIDTH_REDUCTION;
     const footerBaseWidth = Math.min(pageWidth - 40, 780);
     const footerMinLeft = Math.max(0, sidebarWidth + 18);
     const footerMaxWidth = Math.max(0, pageWidth - footerMinLeft - 30);
-    const footerWidth = Math.min(footerBaseWidth * 0.8, footerMaxWidth);
+    const footerWidthBase = Math.min(footerBaseWidth * 0.8, footerMaxWidth);
+    const footerWidth = footerWidthBase * FOOTER_WIDTH_REDUCTION;
     const footerHeight = footerWidth * IMAGE_ASPECT_RATIOS.footer;
     const bottomLift = pageMargins[3] * 0.1;
     const footerY = Math.max(0, pageHeight - footerHeight - bottomLift);
@@ -412,7 +436,7 @@
         const pageWidth = pageSize.width || 841.89;
         const pageHeight = pageSize.height || 595.28;
         const baseSidebarWidth = Math.min(70, pageWidth * 0.08);
-        const sidebarWidth = baseSidebarWidth * 0.85;
+        const sidebarWidth = baseSidebarWidth * 0.85 * SIDEBAR_WIDTH_REDUCTION;
         const backgroundWidth = Math.min(320, pageWidth * 0.35);
         const backgroundX = pageWidth - backgroundWidth + backgroundWidth * 0.12;
         const backgroundHeight = backgroundWidth * IMAGE_ASPECT_RATIOS.background;
@@ -420,14 +444,15 @@
         const footerBaseWidth = Math.min(pageWidth - 40, 780);
         const footerMinLeft = Math.max(0, sidebarWidth + 18);
         const footerMaxWidth = Math.max(0, pageWidth - footerMinLeft - 30);
-        const footerWidth = Math.min(footerBaseWidth * 0.8, footerMaxWidth);
+        const footerWidthBase = Math.min(footerBaseWidth * 0.8, footerMaxWidth);
+        const footerWidth = footerWidthBase * FOOTER_WIDTH_REDUCTION;
         const footerHeight = footerWidth * IMAGE_ASPECT_RATIOS.footer;
         const bottomLift = pageMargins[3] * 0.1;
         const footerY = Math.max(0, pageHeight - footerHeight - bottomLift);
         const logoWidth = Math.min(backgroundWidth * 0.6, 200);
         const logoHeight = logoWidth * IMAGE_ASPECT_RATIOS.logo;
         const logoY = Math.max(0, (pageHeight - logoHeight) / 2);
-        const logoX = backgroundX + backgroundWidth - logoWidth + Math.min(logoWidth * 0.1, 20);
+        const logoX = backgroundX + (backgroundWidth - logoWidth) / 2;
 
         return [
           {
