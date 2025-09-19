@@ -63,6 +63,8 @@
     return lookup;
   }, new Map());
 
+  const TRABAJOS_VERTICALES_NORMALISED_NAME = 'trabajos verticales';
+
   const CERTIFICATE_BUTTON_LABEL = 'Certificado';
   const GENERATE_ALL_CERTIFICATES_LABEL = 'Generar Todos los Certificados';
 
@@ -201,6 +203,9 @@
             updateCellTooltip(td, input, column, value);
             if (column.field === 'formacion') {
               applyTrainingDuration(index, event.target.value);
+              autoFillSecondTrainingDate(index);
+            } else if (column.field === 'fecha') {
+              autoFillSecondTrainingDate(index);
             }
           };
           if (column.type === 'select') {
@@ -698,6 +703,66 @@
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '');
+  }
+
+  function isTrabajosVerticalesTraining(value) {
+    return normaliseTrainingName(value) === TRABAJOS_VERTICALES_NORMALISED_NAME;
+  }
+
+  function calculateNextIsoDate(isoDate) {
+    if (!isoDate || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
+      return '';
+    }
+
+    const [rawYear, rawMonth, rawDay] = isoDate.split('-');
+    const year = Number.parseInt(rawYear, 10);
+    const month = Number.parseInt(rawMonth, 10);
+    const day = Number.parseInt(rawDay, 10);
+
+    if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) {
+      return '';
+    }
+
+    const date = new Date(Date.UTC(year, month - 1, day));
+    date.setUTCDate(date.getUTCDate() + 1);
+    return date.toISOString().split('T')[0];
+  }
+
+  function autoFillSecondTrainingDate(rowIndex) {
+    const row = state.rows[rowIndex];
+    if (!row || !isTrabajosVerticalesTraining(row.formacion)) {
+      return;
+    }
+
+    const mainDate = normaliseDateValue(row.fecha);
+    if (!mainDate) {
+      return;
+    }
+
+    const nextDate = calculateNextIsoDate(mainDate);
+    if (!nextDate) {
+      return;
+    }
+
+    const currentSecondDate = normaliseDateValue(row.segundaFecha);
+    if (currentSecondDate === nextDate) {
+      return;
+    }
+
+    updateRowValue(rowIndex, 'segundaFecha', nextDate);
+
+    const secondDateInput = elements.tableBody.querySelector(
+      `input[data-index="${rowIndex}"][data-field="segundaFecha"]`
+    );
+
+    if (secondDateInput && secondDateInput.value !== nextDate) {
+      secondDateInput.value = nextDate;
+      const secondDateCell = secondDateInput.closest('td');
+      const secondDateColumn = TABLE_COLUMN_LOOKUP.get('segundaFecha');
+      if (secondDateCell && secondDateColumn) {
+        updateCellTooltip(secondDateCell, secondDateInput, secondDateColumn, nextDate);
+      }
+    }
   }
 
   function applyTrainingDuration(rowIndex, trainingValue) {
