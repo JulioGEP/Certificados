@@ -15,6 +15,11 @@
     logo: 382 / 827
   };
 
+  const PAGE_DIMENSIONS = {
+    width: 841.89,
+    height: 595.28
+  };
+
   const FONT_SOURCES = {
     'Poppins-Regular.ttf':
       'https://cdn.jsdelivr.net/npm/@fontsource/poppins@5.0.17/files/poppins-latin-400-normal.ttf',
@@ -215,6 +220,38 @@
     return normaliseText(value) || 'Nombre de la formación';
   }
 
+  function calculateFooterGeometry(pageWidth, pageHeight, pageMargins) {
+    const baseSidebarWidth = Math.min(70, pageWidth * 0.08);
+    const sidebarWidth = baseSidebarWidth * 0.85;
+    const footerBaseWidth = Math.min(pageWidth - 40, 780);
+    const footerMinLeft = Math.max(0, sidebarWidth + 18);
+    const footerMaxWidth = Math.max(0, pageWidth - footerMinLeft - 30);
+    const footerWidth = Math.min(footerBaseWidth * 0.8, footerMaxWidth);
+    const footerHeight = footerWidth * IMAGE_ASPECT_RATIOS.footer;
+    const bottomLift = pageMargins[3] * 0.1;
+    const footerY = Math.max(0, pageHeight - footerHeight - bottomLift);
+    return { footerY, footerMinLeft };
+  }
+
+  function buildTrainerBlock(row, geometry, pageMargins) {
+    const trainer = normaliseText(row.irata);
+    if (!trainer) {
+      return null;
+    }
+
+    const label = `Formador: ${trainer}`;
+    const x = Math.max(geometry.footerMinLeft + 10, pageMargins[0]);
+    const y = Math.max(0, geometry.footerY - 18);
+
+    return {
+      text: label,
+      fontSize: 9,
+      color: '#1f274d',
+      absolutePosition: { x, y },
+      margin: [0, 0, 0, 0]
+    };
+  }
+
   function buildFileName(row) {
     const name = buildFullName(row).toLowerCase();
     const safeName = name
@@ -275,6 +312,10 @@
     const location = formatLocation(row.lugar);
     const duration = formatDuration(row.duracion);
     const trainingName = formatTrainingName(row.formacion);
+    const pageWidth = PAGE_DIMENSIONS.width;
+    const pageHeight = PAGE_DIMENSIONS.height;
+    const footerGeometry = calculateFooterGeometry(pageWidth, pageHeight, pageMargins);
+    const trainerBlock = buildTrainerBlock(row, footerGeometry, pageMargins);
 
     const contentStack = [
       {
@@ -363,6 +404,10 @@
         subject: trainingName
       }
     };
+
+    if (trainerBlock) {
+      docDefinition.content.push(trainerBlock);
+    }
 
     return docDefinition;
   }
