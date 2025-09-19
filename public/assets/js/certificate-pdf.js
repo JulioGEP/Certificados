@@ -25,6 +25,8 @@
   const LINE_HEIGHT_REDUCTION = 0.5;
   const MIN_LINE_HEIGHT = 0.7;
   const PRACTICE_COLUMN_SHIFT_RATIO = 0.1;
+  const PRACTICE_COLUMN_SHIFT_MAX = 2;
+  const THEORY_COLUMN_ADDITIONAL_RIGHT_MARGIN = 2;
   const BACKGROUND_HORIZONTAL_SHIFT_RATIO = 0.15;
   const BACKGROUND_VERTICAL_SHIFT_RATIO = 0.05;
   const LOGO_HORIZONTAL_SHIFT_RATIO = 0.2;
@@ -96,7 +98,10 @@
             margin: [0, 2, 0, 0]
           }
         ],
-        margin: [0, 0, 0, 0]
+        margin:
+          THEORY_COLUMN_ADDITIONAL_RIGHT_MARGIN > 0
+            ? [0, 0, THEORY_COLUMN_ADDITIONAL_RIGHT_MARGIN, 0]
+            : [0, 0, 0, 0]
       });
     }
 
@@ -165,7 +170,12 @@
 
     const normalizedPracticeShift =
       columns.length > 1
-        ? Math.min(practiceColumnShift, columnGap * 0.5, effectiveColumnWidth * 0.1)
+        ? Math.min(
+            practiceColumnShift,
+            columnGap * 0.5,
+            effectiveColumnWidth * 0.1,
+            PRACTICE_COLUMN_SHIFT_MAX
+          )
         : 0;
 
     const sizedColumns = columns.map((column) => {
@@ -176,7 +186,7 @@
       };
       if (isPractice) {
         sizedColumn.margin = normalizedPracticeShift
-          ? [-normalizedPracticeShift, 0, 0, 0]
+          ? [normalizedPracticeShift, 0, 0, 0]
           : [0, 0, 0, 0];
       }
       return sizedColumn;
