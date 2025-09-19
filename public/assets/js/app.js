@@ -6,6 +6,7 @@
     { field: 'apellido', label: 'Apellidos', type: 'text', placeholder: 'Apellidos del alumno' },
     { field: 'dni', label: 'DNI / NIE', type: 'text', placeholder: 'Documento' },
     { field: 'fecha', label: 'Fecha', type: 'date' },
+    { field: 'segundaFecha', label: '2ª Fecha', type: 'date' },
     { field: 'lugar', label: 'Lugar', type: 'text', placeholder: 'Sede de la formación' },
     { field: 'duracion', label: 'Duración', type: 'number', placeholder: 'Horas' },
     { field: 'cliente', label: 'Cliente', type: 'text', placeholder: 'Empresa' },
@@ -49,6 +50,8 @@
     return lookup;
   }, new Map());
 
+  const TRABAJOS_VERTICALES_KEY = normaliseTrainingName('Trabajos Verticales');
+
   const CERTIFICATE_BUTTON_LABEL = 'Certificado';
   const GENERATE_ALL_CERTIFICATES_LABEL = 'Generar Todos los Certificados';
 
@@ -89,6 +92,13 @@
       if (Array.isArray(parsed)) {
         state.rows = parsed.map((row) => {
           const hydratedRow = { ...createEmptyRow(), ...row };
+          hydratedRow.segundaFecha = normaliseDateValue(hydratedRow.segundaFecha);
+          if (!hydratedRow.segundaFecha) {
+            const automaticSecondDate = getAutomaticSecondDate(hydratedRow.formacion, hydratedRow.fecha);
+            if (automaticSecondDate) {
+              hydratedRow.segundaFecha = automaticSecondDate;
+            }
+          }
           if (hydratedRow.duracion === undefined || hydratedRow.duracion === null || hydratedRow.duracion === '') {
             const duration = getTrainingDuration(hydratedRow.formacion);
             if (duration) {
@@ -120,6 +130,7 @@
       dni: '',
       documentType: '',
       fecha: '',
+      segundaFecha: '',
       lugar: '',
       duracion: '',
       cliente: '',
@@ -182,13 +193,19 @@
             updateCellTooltip(td, input, column, value);
             if (column.field === 'formacion') {
               applyTrainingDuration(index, event.target.value);
+              applyAutomaticSecondDate(index);
+            } else if (column.field === 'fecha') {
+              applyAutomaticSecondDate(index);
             }
           });
-          if (column.field === 'fecha') {
+          if (column.type === 'date') {
             input.addEventListener('change', (event) => {
               const { value } = event.target;
               updateRowValue(index, column.field, value);
               updateCellTooltip(td, input, column, value);
+              if (column.field === 'fecha') {
+                applyAutomaticSecondDate(index);
+              }
             });
           }
           td.appendChild(input);
@@ -552,14 +569,17 @@
   }
 
   function addDealToTable(dealId, data) {
+    const trainingName = data.trainingName || '';
+    const trainingDate = normaliseDateValue(data.trainingDate);
     const baseRow = {
       ...createEmptyRow(),
       presupuesto: dealId,
-      fecha: normaliseDateValue(data.trainingDate),
+      fecha: trainingDate,
+      segundaFecha: getAutomaticSecondDate(trainingName, trainingDate),
       lugar: data.trainingLocation || '',
-      duracion: getTrainingDuration(data.trainingName),
+      duracion: getTrainingDuration(trainingName),
       cliente: data.clientName || '',
-      formacion: data.trainingName || '',
+      formacion: trainingName,
       personaContacto: data.contactName || '',
       correoContacto: data.contactEmail || ''
     };
@@ -669,6 +689,62 @@
     }
 
     return parsed.toISOString().split('T')[0];
+  }
+
+  function applyAutomaticSecondDate(rowIndex) {
+    if (!state.rows[rowIndex]) return;
+
+    const row = state.rows[rowIndex];
+    const automaticSecondDate = getAutomaticSecondDate(row.formacion, row.fecha);
+    const finalValue = automaticSecondDate || '';
+    const normalisedCurrentValue = normaliseDateValue(row.segundaFecha);
+
+    if (normalisedCurrentValue !== finalValue || row.segundaFecha !== finalValue) {
+      updateRowValue(rowIndex, 'segundaFecha', finalValue);
+    }
+
+    syncSecondDateInput(rowIndex, finalValue);
+  }
+
+  function syncSecondDateInput(rowIndex, value) {
+    const secondDateInput = elements.tableBody.querySelector(
+      `input[data-index="${rowIndex}"][data-field="segundaFecha"]`
+    );
+    if (!secondDateInput) {
+      return;
+    }
+    if (secondDateInput.value !== value) {
+      secondDateInput.value = value;
+    }
+    const secondDateCell = secondDateInput.closest('td');
+    const secondDateColumn = TABLE_COLUMN_LOOKUP.get('segundaFecha');
+    if (secondDateCell && secondDateColumn) {
+      updateCellTooltip(secondDateCell, secondDateInput, secondDateColumn, value);
+    }
+  }
+
+  function getAutomaticSecondDate(trainingValue, primaryDateValue) {
+    if (!isTrabajosVerticalesTraining(trainingValue)) {
+      return '';
+    }
+    return calculateConsecutiveDate(primaryDateValue);
+  }
+
+  function isTrabajosVerticalesTraining(trainingValue) {
+    return normaliseTrainingName(trainingValue) === TRABAJOS_VERTICALES_KEY;
+  }
+
+  function calculateConsecutiveDate(dateValue) {
+    const normalised = normaliseDateValue(dateValue);
+    if (!normalised) {
+      return '';
+    }
+    const referenceDate = new Date(normalised);
+    if (Number.isNaN(referenceDate.getTime())) {
+      return '';
+    }
+    referenceDate.setDate(referenceDate.getDate() + 1);
+    return referenceDate.toISOString().split('T')[0];
   }
 
   function setLoading(isLoading) {
