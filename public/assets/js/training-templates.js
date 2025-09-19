@@ -462,6 +462,33 @@
     };
   }
 
+  function isCustomTemplateId(id) {
+    if (!id) {
+      return false;
+    }
+    const stringId = String(id);
+    return customTemplates.some((template) => template.id === stringId);
+  }
+
+  function deleteTemplate(id) {
+    if (!id) {
+      return false;
+    }
+
+    const stringId = String(id);
+    const templateToRemove = customTemplates.find((template) => template.id === stringId);
+    if (!templateToRemove) {
+      return false;
+    }
+
+    customTemplates = customTemplates.filter((template) => template.id !== stringId);
+    persistCustomTemplates(customTemplates);
+    refreshTemplates();
+    notifySubscribers();
+
+    return true;
+  }
+
   function subscribe(callback) {
     if (typeof callback !== 'function') {
       return () => {};
@@ -481,6 +508,8 @@
     getTrainingTitle,
     saveTemplate,
     createEmptyTemplate,
+    deleteTemplate,
+    isCustomTemplateId,
     subscribe,
     normaliseName
   };
