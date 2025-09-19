@@ -1,5 +1,11 @@
 (() => {
   const STORAGE_KEY = 'gep-certificados/session/v1';
+  const IRATA_TRAINERS = [
+    'Cristobal Corredor Navarro: 1/248468',
+    'Laura Medina Matías : 1/247658',
+    'Luís Vicent Pérez - Irata: 1/175398',
+    'Isaac El Allaoui Algaba: Técnico Irata: 1/248469'
+  ];
   const TABLE_COLUMNS = [
     { field: 'presupuesto', label: 'Presupuesto', type: 'text', placeholder: 'ID del deal' },
     { field: 'nombre', label: 'Nombre', type: 'text', placeholder: 'Nombre del alumno' },
@@ -9,7 +15,14 @@
     { field: 'lugar', label: 'Lugar', type: 'text', placeholder: 'Sede de la formación' },
     { field: 'duracion', label: 'Duración', type: 'number', placeholder: 'Horas' },
     { field: 'cliente', label: 'Cliente', type: 'text', placeholder: 'Empresa' },
-    { field: 'formacion', label: 'Formación', type: 'text', placeholder: 'Título de la formación' }
+    { field: 'formacion', label: 'Formación', type: 'text', placeholder: 'Título de la formación' },
+    {
+      field: 'irata',
+      label: 'IRATA',
+      type: 'select',
+      placeholder: 'Selecciona formador/a',
+      options: IRATA_TRAINERS
+    }
   ];
 
   const TABLE_COLUMN_LOOKUP = TABLE_COLUMNS.reduce((lookup, column) => {
@@ -124,6 +137,7 @@
       duracion: '',
       cliente: '',
       formacion: '',
+      irata: '',
       personaContacto: '',
       correoContacto: ''
     };
@@ -176,20 +190,22 @@
           updateCellTooltip(td, input, column, input.value);
         } else {
           const input = createInput(column, row[column.field], index);
-          input.addEventListener('input', (event) => {
+          const handleValueChange = (event) => {
             const { value } = event.target;
             updateRowValue(index, column.field, value);
             updateCellTooltip(td, input, column, value);
             if (column.field === 'formacion') {
               applyTrainingDuration(index, event.target.value);
             }
-          });
-          if (column.field === 'fecha') {
-            input.addEventListener('change', (event) => {
-              const { value } = event.target;
-              updateRowValue(index, column.field, value);
-              updateCellTooltip(td, input, column, value);
-            });
+          };
+          if (column.type === 'select') {
+            input.addEventListener('change', handleValueChange);
+            input.addEventListener('input', handleValueChange);
+          } else {
+            input.addEventListener('input', handleValueChange);
+            if (column.field === 'fecha') {
+              input.addEventListener('change', handleValueChange);
+            }
           }
           td.appendChild(input);
           updateCellTooltip(td, input, column, input.value);
@@ -266,6 +282,47 @@
   }
 
   function createInput(column, value, index) {
+    if (column.type === 'select') {
+      const select = document.createElement('select');
+      select.className = 'form-select';
+      select.dataset.field = column.field;
+      select.dataset.index = String(index);
+      if (column.label) {
+        select.setAttribute('aria-label', column.label);
+      }
+
+      const placeholderOption = document.createElement('option');
+      placeholderOption.value = '';
+      placeholderOption.textContent = column.placeholder || 'Selecciona una opción';
+      select.appendChild(placeholderOption);
+
+      const options = Array.isArray(column.options) ? column.options : [];
+      options.forEach((option) => {
+        if (option === null || option === undefined) {
+          return;
+        }
+        const optionElement = document.createElement('option');
+        if (typeof option === 'object') {
+          const optionValue = option.value === undefined || option.value === null ? '' : String(option.value);
+          optionElement.value = optionValue;
+          optionElement.textContent = option.label || optionValue;
+        } else {
+          const optionValue = String(option);
+          optionElement.value = optionValue;
+          optionElement.textContent = optionValue;
+        }
+        select.appendChild(optionElement);
+      });
+
+      const normalisedValue = value === undefined || value === null ? '' : String(value);
+      select.value = normalisedValue;
+      if (select.value !== normalisedValue) {
+        select.value = '';
+      }
+
+      return select;
+    }
+
     const input = document.createElement('input');
     input.className = 'form-control';
     input.type = column.type === 'number' ? 'number' : column.type;
