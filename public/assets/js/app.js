@@ -187,27 +187,29 @@
           updateCellTooltip(td, input, column, input.value);
         } else {
           const input = createInput(column, row[column.field], index);
-          input.addEventListener('input', (event) => {
+          const handleValueChange = (event) => {
             const { value } = event.target;
             updateRowValue(index, column.field, value);
             updateCellTooltip(td, input, column, value);
+
             if (column.field === 'formacion') {
-              applyTrainingDuration(index, event.target.value);
+              applyTrainingDuration(index, value);
               applyAutomaticSecondDate(index);
             } else if (column.field === 'fecha') {
               applyAutomaticSecondDate(index);
             }
-          });
-          if (column.type === 'date') {
-            input.addEventListener('change', (event) => {
-              const { value } = event.target;
-              updateRowValue(index, column.field, value);
-              updateCellTooltip(td, input, column, value);
-              if (column.field === 'fecha') {
-                applyAutomaticSecondDate(index);
-              }
-            });
+          };
+
+          if (column.type === 'select') {
+            input.addEventListener('change', handleValueChange);
+            input.addEventListener('input', handleValueChange);
+          } else {
+            input.addEventListener('input', handleValueChange);
+            if (column.type === 'date') {
+              input.addEventListener('change', handleValueChange);
+            }
           }
+
           td.appendChild(input);
           updateCellTooltip(td, input, column, input.value);
         }
