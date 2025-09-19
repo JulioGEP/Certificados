@@ -174,12 +174,20 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  width: 100%;
+}
+
+.table tbody td .document-wrapper .form-control {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .document-badge {
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .btn {
