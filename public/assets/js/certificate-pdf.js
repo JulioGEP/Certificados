@@ -27,7 +27,12 @@
   const PRACTICE_COLUMN_SHIFT_RATIO = 0.1;
   const BACKGROUND_HORIZONTAL_SHIFT_RATIO = 0.15;
   const BACKGROUND_VERTICAL_SHIFT_RATIO = 0.05;
-  const LOGO_HORIZONTAL_SHIFT_RATIO = 0.60;
+  const LOGO_HORIZONTAL_SHIFT_RATIO = 0.5;
+  const TRAINING_CONTENT_MAX_WIDTH_RATIO = 0.78;
+  const TRAINING_CONTENT_SAFETY_MARGIN = 80;
+  const TRAINING_CONTENT_MIN_WIDTH = 320;
+  const TRAINING_CONTENT_MIN_COLUMN_WIDTH = 150;
+  const TRAINING_CONTENT_COLUMN_GAP = 16;
 
   const PAGE_DIMENSIONS = {
     width: 841.89,
@@ -77,33 +82,35 @@
     const theoryItems = Array.isArray(details.theory) ? details.theory : [];
     const practiceItems = Array.isArray(details.practice) ? details.practice : [];
     const columns = [];
-    const practiceColumnShift =
-      typeof options.practiceColumnShift === 'number' ? options.practiceColumnShift : 0;
+    const columnGap =
+      typeof options.columnGap === 'number' && options.columnGap >= 0
+        ? options.columnGap
+        : TRAINING_CONTENT_COLUMN_GAP;
 
     if (theoryItems.length) {
       columns.push({
-        width: '*',
         stack: [
           { text: 'Parte teórica', style: 'sectionHeading' },
           {
             ul: theoryItems.map((item) => ({ text: item, style: 'theoryListItem' })),
             margin: [0, 2, 0, 0]
           }
-        ]
+        ],
+        margin: [0, 0, 0, 0]
       });
     }
 
     if (practiceItems.length) {
       columns.push({
-        width: '*',
-        margin: practiceColumnShift ? [-practiceColumnShift, 0, 0, 0] : [0, 0, 0, 0],
         stack: [
           { text: 'Parte práctica', style: 'sectionHeading' },
           {
             ul: practiceItems.map((item) => ({ text: item, style: 'listItem' })),
             margin: [0, 2, 0, 0]
           }
-        ]
+        ],
+        margin: [0, 0, 0, 0],
+        isPractice: true
       });
     }
 
@@ -111,14 +118,92 @@
       return [];
     }
 
-    if (columns.length === 1) {
-      columns.push({ width: '*', text: '', margin: [0, 0, 0, 0] });
+    const totalAvailableWidth =
+      typeof options.totalAvailableWidth === 'number' && options.totalAvailableWidth > 0
+        ? options.totalAvailableWidth
+        : null;
+
+    let boundingWidth =
+      typeof options.boundingWidth === 'number' && options.boundingWidth > 0
+        ? options.boundingWidth
+        : null;
+
+    if (boundingWidth !== null && totalAvailableWidth !== null) {
+      boundingWidth = Math.min(boundingWidth, totalAvailableWidth);
     }
+
+    if (boundingWidth === null) {
+      boundingWidth = totalAvailableWidth || TRAINING_CONTENT_MIN_WIDTH;
+    }
+
+    const minimumBoundingWidth = (() => {
+      const gapWidth = columnGap * Math.max(columns.length - 1, 0);
+      const requiredWidthForColumns =
+        columns.length * TRAINING_CONTENT_MIN_COLUMN_WIDTH + gapWidth;
+      const minWidthConstraint =
+        totalAvailableWidth !== null
+          ? Math.min(TRAINING_CONTENT_MIN_WIDTH, totalAvailableWidth)
+          : TRAINING_CONTENT_MIN_WIDTH;
+      const combinedMinimum = Math.max(requiredWidthForColumns, minWidthConstraint);
+      return totalAvailableWidth !== null
+        ? Math.min(combinedMinimum, totalAvailableWidth)
+        : combinedMinimum;
+    })();
+
+    const effectiveBoundingWidth = Math.max(boundingWidth, minimumBoundingWidth);
+    const totalGap = columnGap * Math.max(columns.length - 1, 0);
+    const rawColumnWidth =
+      columns.length > 0
+        ? (effectiveBoundingWidth - totalGap) / columns.length
+        : effectiveBoundingWidth;
+    const effectiveColumnWidth = Math.max(0, rawColumnWidth);
+
+    const practiceColumnShift =
+      typeof options.practiceColumnShift === 'number' && options.practiceColumnShift > 0
+        ? options.practiceColumnShift
+        : 0;
+
+    const normalizedPracticeShift =
+      columns.length > 1
+        ? Math.min(practiceColumnShift, columnGap * 0.5, effectiveColumnWidth * 0.1)
+        : 0;
+
+    const sizedColumns = columns.map((column) => {
+      const { isPractice, ...definition } = column;
+      const sizedColumn = {
+        ...definition,
+        width: effectiveColumnWidth
+      };
+      if (isPractice) {
+        sizedColumn.margin = normalizedPracticeShift
+          ? [-normalizedPracticeShift, 0, 0, 0]
+          : [0, 0, 0, 0];
+      }
+      return sizedColumn;
+    });
 
     return [
       {
-        columns,
-        columnGap: 12,
+        table: {
+          widths: [effectiveBoundingWidth],
+          body: [
+            [
+              {
+                columns: sizedColumns,
+                columnGap,
+                margin: [0, 0, 0, 0]
+              }
+            ]
+          ]
+        },
+        layout: {
+          hLineWidth: () => 0,
+          vLineWidth: () => 0,
+          paddingLeft: () => 0,
+          paddingRight: () => 0,
+          paddingTop: () => 0,
+          paddingBottom: () => 0
+        },
         margin: [0, 4, 0, 12]
       }
     ];
@@ -410,6 +495,23 @@
     return { footerY, footerMinLeft, footerWidth, footerHeight };
   }
 
+  function calculateTrainingContentWidth(totalWidth) {
+    if (typeof totalWidth !== 'number' || totalWidth <= 0) {
+      return TRAINING_CONTENT_MIN_WIDTH;
+    }
+
+    const ratioWidth = totalWidth * TRAINING_CONTENT_MAX_WIDTH_RATIO;
+    const safetyWidth = totalWidth - TRAINING_CONTENT_SAFETY_MARGIN;
+    const candidateWidth = Math.min(ratioWidth, safetyWidth);
+    const constrainedCandidate = Number.isFinite(candidateWidth)
+      ? candidateWidth
+      : totalWidth;
+    const minWidthConstraint = Math.min(TRAINING_CONTENT_MIN_WIDTH, totalWidth);
+
+    const resolvedWidth = Math.max(minWidthConstraint, constrainedCandidate);
+    return Math.min(resolvedWidth, totalWidth);
+  }
+
   function buildTrainerBlock(row, geometry, pageMargins) {
     const trainer = normaliseText(row.irata);
     if (!trainer) {
@@ -557,11 +659,19 @@
     ];
 
     const availableContentWidth = Math.max(0, pageWidth - pageMargins[0] - pageMargins[2]);
+    const trainingContentWidth = calculateTrainingContentWidth(availableContentWidth);
     const trainingDetailsContent = buildTrainingDetailsContent(trainingDetails, {
-      practiceColumnShift: availableContentWidth * PRACTICE_COLUMN_SHIFT_RATIO
+      practiceColumnShift: availableContentWidth * PRACTICE_COLUMN_SHIFT_RATIO,
+      totalAvailableWidth: availableContentWidth,
+      boundingWidth: trainingContentWidth,
+      columnGap: TRAINING_CONTENT_COLUMN_GAP
     });
     if (trainingDetailsContent.length) {
-      contentStack.push({ text: 'Contenidos de la formación', style: 'contentSectionTitle' });
+      contentStack.push({
+        text: 'Contenidos de la formación',
+        style: 'contentSectionTitle',
+        width: trainingContentWidth
+      });
       contentStack.push(...trainingDetailsContent);
     }
     contentStack.push({ text: '\n', margin: [0, 0, 0, 0] });
