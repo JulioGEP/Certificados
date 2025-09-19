@@ -33,8 +33,9 @@
     return lookup;
   }, new Map());
 
-  const CERTIFICATE_BUTTON_LABEL = 'Certificado';
-  const GENERATE_ALL_CERTIFICATES_LABEL = 'Generar Todos los Certificados';
+  const CERTIFICATE_BUTTON_LABEL = 'PDF';
+  const GENERATE_ALL_CERTIFICATES_LABEL = "Todos PDF's";
+  const SVG_NS = 'http://www.w3.org/2000/svg';
 
   const elements = {
     budgetForm: document.getElementById('budget-form'),
@@ -43,6 +44,8 @@
     addManualRow: document.getElementById('add-manual-row'),
     clearStorage: document.getElementById('clear-storage'),
     generateAllCertificates: document.getElementById('generate-all-certificates'),
+    sendAllToDrive: document.getElementById('send-all-to-drive'),
+    sendAllByEmail: document.getElementById('send-all-by-email'),
     tableBody: document.getElementById('table-body'),
     alertContainer: document.getElementById('alert-container'),
     manageTemplatesButton: document.getElementById('manage-templates-button'),
@@ -82,6 +85,12 @@
     elements.addManualRow.addEventListener('click', addEmptyRow);
     elements.clearStorage.addEventListener('click', clearAllRows);
     elements.generateAllCertificates.addEventListener('click', handleGenerateAllCertificates);
+    if (elements.sendAllToDrive) {
+      elements.sendAllToDrive.addEventListener('click', handleSendAllToDrive);
+    }
+    if (elements.sendAllByEmail) {
+      elements.sendAllByEmail.addEventListener('click', handleSendAllByEmail);
+    }
     setupTemplateManagement();
   }
 
@@ -617,7 +626,7 @@
       const actionsTd = document.createElement('td');
       actionsTd.className = 'text-center';
       const actionsWrapper = document.createElement('div');
-      actionsWrapper.className = 'd-flex flex-column flex-sm-row gap-2 justify-content-center';
+      actionsWrapper.className = 'd-flex flex-column flex-sm-row flex-sm-wrap gap-2 justify-content-center';
 
       const pdfButton = document.createElement('button');
       pdfButton.type = 'button';
@@ -625,13 +634,33 @@
       pdfButton.textContent = CERTIFICATE_BUTTON_LABEL;
       pdfButton.addEventListener('click', () => handleGeneratePdf(index, pdfButton));
 
+      const driveButton = document.createElement('button');
+      driveButton.type = 'button';
+      driveButton.className = 'btn btn-outline-success btn-sm btn-icon';
+      driveButton.setAttribute('aria-label', 'Enviar a Google Drive');
+      driveButton.title = 'Enviar a Google Drive';
+      driveButton.appendChild(createGoogleDriveIcon());
+      driveButton.addEventListener('click', () => handleRowGoogleDrive(index));
+
+      const emailButton = document.createElement('button');
+      emailButton.type = 'button';
+      emailButton.className = 'btn btn-outline-secondary btn-sm btn-icon';
+      emailButton.setAttribute('aria-label', 'Enviar por correo');
+      emailButton.title = 'Enviar por correo';
+      emailButton.appendChild(createEnvelopeIcon());
+      emailButton.addEventListener('click', () => handleRowEmail(index));
+
       const deleteButton = document.createElement('button');
       deleteButton.type = 'button';
-      deleteButton.className = 'btn btn-outline-danger btn-sm';
-      deleteButton.textContent = 'Eliminar';
+      deleteButton.className = 'btn btn-outline-danger btn-sm btn-icon';
+      deleteButton.setAttribute('aria-label', 'Eliminar fila');
+      deleteButton.title = 'Eliminar fila';
+      deleteButton.appendChild(createTrashIcon());
       deleteButton.addEventListener('click', () => removeRow(index));
 
       actionsWrapper.appendChild(pdfButton);
+      actionsWrapper.appendChild(driveButton);
+      actionsWrapper.appendChild(emailButton);
       actionsWrapper.appendChild(deleteButton);
       actionsTd.appendChild(actionsWrapper);
       tr.appendChild(actionsTd);
@@ -640,6 +669,73 @@
     });
 
     updateActionButtonsState();
+  }
+
+  function createSvgElement(tagName) {
+    return document.createElementNS(SVG_NS, tagName);
+  }
+
+  function createGoogleDriveIcon() {
+    const svg = createSvgElement('svg');
+    svg.setAttribute('viewBox', '0 0 64 64');
+    svg.classList.add('icon', 'icon-google-drive');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+
+    const top = createSvgElement('polygon');
+    top.setAttribute('fill', '#FBBC04');
+    top.setAttribute('points', '32 6 44 26 20 26');
+    svg.appendChild(top);
+
+    const left = createSvgElement('polygon');
+    left.setAttribute('fill', '#0F9D58');
+    left.setAttribute('points', '6 54 20 26 32 46 18 54');
+    svg.appendChild(left);
+
+    const right = createSvgElement('polygon');
+    right.setAttribute('fill', '#4285F4');
+    right.setAttribute('points', '58 54 44 26 32 46 46 54');
+    svg.appendChild(right);
+
+    return svg;
+  }
+
+  function createEnvelopeIcon() {
+    const svg = createSvgElement('svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.classList.add('icon', 'icon-envelope');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+
+    const path = createSvgElement('path');
+    path.setAttribute('fill', 'currentColor');
+    path.setAttribute(
+      'd',
+      'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 2v.4l8 5.2 8-5.2V6H4zm16 2.8-6.92 4.49a3 3 0 0 1-3.16 0L4 8.8V18h16V8.8z'
+    );
+    svg.appendChild(path);
+
+    return svg;
+  }
+
+  function createTrashIcon() {
+    const svg = createSvgElement('svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.classList.add('icon', 'icon-trash');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+
+    const lid = createSvgElement('path');
+    lid.setAttribute('fill', 'currentColor');
+    lid.setAttribute('d', 'M9 4V3a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1h5v2H4V4h5zm2-1v1h2V3h-2z');
+    svg.appendChild(lid);
+
+    const bin = createSvgElement('path');
+    bin.setAttribute('fill', 'currentColor');
+    bin.setAttribute('d', 'M5 7h14l-1.05 13.143A2 2 0 0 1 15.97 22H8.03a2 2 0 0 1-1.98-1.857L5 7zm5 3v9h2v-9h-2zm4 0v9h2v-9h-2z');
+    svg.appendChild(bin);
+
+    return svg;
   }
 
   function resolveTooltipText(column, rawValue) {
@@ -828,6 +924,26 @@
       });
   }
 
+  function showUpcomingFeatureMessage(label) {
+    showAlert('info', `${label} estará disponible próximamente.`);
+  }
+
+  function handleRowGoogleDrive(rowIndex) {
+    if (!state.rows[rowIndex]) {
+      showAlert('danger', 'No se ha encontrado la fila seleccionada.');
+      return;
+    }
+    showUpcomingFeatureMessage('La integración con Google Drive');
+  }
+
+  function handleRowEmail(rowIndex) {
+    if (!state.rows[rowIndex]) {
+      showAlert('danger', 'No se ha encontrado la fila seleccionada.');
+      return;
+    }
+    showUpcomingFeatureMessage('El envío por correo');
+  }
+
   async function handleGenerateAllCertificates() {
     if (!state.rows.length) {
       showAlert('info', 'Añade al menos un alumn@ antes de generar los certificados.');
@@ -877,6 +993,22 @@
     }
 
     updateActionButtonsState();
+  }
+
+  function handleSendAllToDrive() {
+    if (!state.rows.length) {
+      showAlert('info', 'Añade al menos un alumn@ antes de usar esta acción.');
+      return;
+    }
+    showUpcomingFeatureMessage('La integración con Google Drive');
+  }
+
+  function handleSendAllByEmail() {
+    if (!state.rows.length) {
+      showAlert('info', 'Añade al menos un alumn@ antes de usar esta acción.');
+      return;
+    }
+    showUpcomingFeatureMessage('El envío por correo');
   }
 
   async function handleBudgetSubmit(event) {
@@ -1084,6 +1216,12 @@
     const hasRows = state.rows.length > 0;
     elements.clearStorage.disabled = !hasRows;
     elements.generateAllCertificates.disabled = !hasRows;
+    if (elements.sendAllToDrive) {
+      elements.sendAllToDrive.disabled = !hasRows;
+    }
+    if (elements.sendAllByEmail) {
+      elements.sendAllByEmail.disabled = !hasRows;
+    }
   }
 
   function getTrainingDuration(trainingName) {
