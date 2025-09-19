@@ -618,7 +618,7 @@
       ...createEmptyRow(),
       presupuesto: dealId,
       fecha: normaliseDateValue(data.trainingDate),
-      segundaFecha: '',
+      segundaFecha: normaliseDateValue(data.secondaryTrainingDate),
       lugar: data.trainingLocation || '',
       duracion: getTrainingDuration(data.trainingName),
       cliente: data.clientName || '',
