@@ -101,6 +101,71 @@
     );
   }
 
+  const INTERACTION_REQUIRED_ERRORS = new Set([
+    'consent_required',
+    'interaction_required',
+    'login_required'
+  ]);
+
+  function clearStoredToken() {
+    state.accessToken = null;
+    state.tokenExpiresAt = 0;
+  }
+
+  function normaliseExpiresIn(expiresIn) {
+    const expiresInNumber = Number(expiresIn);
+    if (!Number.isFinite(expiresInNumber) || expiresInNumber <= 0) {
+      return 0;
+    }
+    return expiresInNumber * 1000;
+  }
+
+  function requestAccessTokenWithPrompt(prompt) {
+    return new Promise((resolve, reject) => {
+      state.tokenClient.callback = (response) => {
+        if (!response) {
+          clearStoredToken();
+          reject(new Error('No se ha recibido respuesta del servicio de autenticación de Google.'));
+          return;
+        }
+
+        if (response.error) {
+          const error = new Error(
+            response.error_description ||
+              response.error ||
+              'No se ha podido obtener autorización para usar Google Drive.'
+          );
+          error.code = response.error;
+          clearStoredToken();
+          reject(error);
+          return;
+        }
+
+        const { access_token: accessToken, expires_in: expiresIn } = response;
+        if (!accessToken) {
+          clearStoredToken();
+          reject(new Error('No se ha recibido el token de acceso de Google.'));
+          return;
+        }
+
+        state.accessToken = accessToken;
+        const expiresInMs = normaliseExpiresIn(expiresIn);
+        state.tokenExpiresAt = Date.now() + Math.max(0, expiresInMs);
+        resolve(accessToken);
+      };
+
+      try {
+        state.tokenClient.requestAccessToken({
+          prompt,
+          include_granted_scopes: true
+        });
+      } catch (error) {
+        clearStoredToken();
+        reject(error);
+      }
+    });
+  }
+
   async function ensureAccessToken(options = {}) {
     if (!config.clientId) {
       throw new Error(
@@ -122,44 +187,16 @@
       return state.accessToken;
     }
 
-    return new Promise((resolve, reject) => {
-      state.tokenClient.callback = (response) => {
-        if (!response) {
-          reject(new Error('No se ha recibido respuesta del servicio de autenticación de Google.'));
-          return;
-        }
+    const prompt = options.force || !state.accessToken ? 'consent' : 'none';
 
-        if (response.error) {
-          const error = new Error(
-            response.error_description ||
-              response.error ||
-              'No se ha podido obtener autorización para usar Google Drive.'
-          );
-          error.code = response.error;
-          reject(error);
-          return;
-        }
-
-        const { access_token: accessToken, expires_in: expiresIn } = response;
-        if (!accessToken) {
-          reject(new Error('No se ha recibido el token de acceso de Google.'));
-          return;
-        }
-
-        state.accessToken = accessToken;
-        const expiresInMs = typeof expiresIn === 'number' ? expiresIn * 1000 : 0;
-        state.tokenExpiresAt = Date.now() + Math.max(0, expiresInMs);
-        resolve(accessToken);
-      };
-
-      try {
-        state.tokenClient.requestAccessToken({
-          prompt: options.force || !state.accessToken ? 'consent' : ''
-        });
-      } catch (error) {
-        reject(error);
+    try {
+      return await requestAccessTokenWithPrompt(prompt);
+    } catch (error) {
+      if (!options.force && error && INTERACTION_REQUIRED_ERRORS.has(error.code)) {
+        return ensureAccessToken({ force: true });
       }
-    });
+      throw error;
+    }
   }
 
   function buildDriveQuery(params) {
@@ -431,8 +468,7 @@
   }
 
   function resetToken() {
-    state.accessToken = null;
-    state.tokenExpiresAt = 0;
+    clearStoredToken();
   }
 
   const initialConfig = global.GOOGLE_DRIVE_CONFIG;
