@@ -96,7 +96,8 @@
     isSending: false,
     sendButtonOriginalLabel: '',
     autoCloseTimeoutId: null,
-    initialised: false
+    initialised: false,
+    isPreparingLink: false
   };
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -1353,6 +1354,7 @@
     setEmailModalStatus('');
     populateEmailModalFields(row);
     emailModalState.modalInstance.show();
+    prepareEmailModalCertificateLink(rowIndex);
   }
 
   async function handleGenerateAllCertificates() {
@@ -1518,6 +1520,11 @@
     event.preventDefault();
 
     if (emailModalState.isSending) {
+      return;
+    }
+
+    if (emailModalState.isPreparingLink) {
+      setEmailModalStatus('Espera a que el certificado esté listo para enviar.', 'info');
       return;
     }
 
@@ -1968,6 +1975,7 @@
 
     emailModalState.currentRowIndex = -1;
     emailModalState.isSending = false;
+    emailModalState.isPreparingLink = false;
 
     if (elements.emailForm) {
       elements.emailForm.reset();
@@ -2016,6 +2024,94 @@
     }
 
     updateEmailSendButtonState();
+  }
+
+  async function prepareEmailModalCertificateLink(rowIndex) {
+    if (emailModalState.currentRowIndex !== rowIndex) {
+      return;
+    }
+
+    const row = state.rows[rowIndex];
+    if (!row) {
+      return;
+    }
+
+    emailModalState.isPreparingLink = true;
+    const { emailSendButton, emailBodyInput } = elements;
+    if (emailSendButton) {
+      emailSendButton.setAttribute('aria-busy', 'true');
+    }
+    updateEmailSendButtonState();
+
+    const updateStatus = (message, type) => {
+      if (emailModalState.currentRowIndex !== rowIndex) {
+        return;
+      }
+      if (!message) {
+        setEmailModalStatus('');
+        return;
+      }
+      setEmailModalStatus(message, type);
+    };
+
+    updateStatus('Preparando el certificado…', 'info');
+
+    try {
+      const ensureResult = (await ensureRowHasDriveFile(rowIndex, {
+        onStatusChange: (message, type) => {
+          if (emailModalState.currentRowIndex !== rowIndex) {
+            return;
+          }
+          if (!message) {
+            setEmailModalStatus('');
+            return;
+          }
+          setEmailModalStatus(message, type);
+        }
+      })) || {};
+
+      if (emailModalState.currentRowIndex !== rowIndex) {
+        return;
+      }
+
+      if (ensureResult.error) {
+        setEmailModalStatus(ensureResult.error.message, ensureResult.error.type || 'danger');
+        return;
+      }
+
+      const publicLink = ensureResult.link || '';
+      if (emailBodyInput) {
+        const currentBody = emailBodyInput.value || '';
+        const updatedBody = ensureEmailBodyHasLink(currentBody, publicLink);
+        if (updatedBody.didUpdate) {
+          emailBodyInput.value = updatedBody.updatedBody;
+        }
+      }
+
+      if (ensureResult.warning && ensureResult.warning.message) {
+        setEmailModalStatus(ensureResult.warning.message, ensureResult.warning.type || 'warning');
+        return;
+      }
+
+      if (publicLink) {
+        setEmailModalStatus('Certificado listo para enviar.', 'success');
+      } else {
+        setEmailModalStatus('');
+      }
+    } catch (error) {
+      console.error('No se ha podido preparar el enlace del certificado', error);
+      if (emailModalState.currentRowIndex === rowIndex) {
+        setEmailModalStatus('No se ha podido preparar el enlace del certificado. Inténtalo de nuevo.', 'danger');
+      }
+    } finally {
+      if (emailModalState.currentRowIndex === rowIndex) {
+        emailModalState.isPreparingLink = false;
+        if (emailSendButton) {
+          emailSendButton.removeAttribute('aria-busy');
+        }
+        updateEmailSendButtonState();
+      }
+    }
   }
 
   function setEmailModalStatus(message, type = 'info') {
@@ -2075,7 +2171,7 @@
       return;
     }
 
-    if (emailModalState.isSending) {
+    if (emailModalState.isSending || emailModalState.isPreparingLink) {
       emailSendButton.disabled = true;
       return;
     }
