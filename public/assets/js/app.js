@@ -841,7 +841,7 @@
       driveButton.setAttribute('aria-label', 'Enviar a Google Drive');
       driveButton.title = 'Enviar a Google Drive';
       driveButton.appendChild(createGoogleDriveIcon());
-      driveButton.addEventListener('click', () => handleRowGoogleDrive(index));
+      driveButton.addEventListener('click', () => handleRowGoogleDrive(index, driveButton));
 
       const emailButton = document.createElement('button');
       emailButton.type = 'button';
@@ -1140,12 +1140,105 @@
     showAlert('info', `${label} estará disponible próximamente.`);
   }
 
-  function handleRowGoogleDrive(rowIndex) {
-    if (!state.rows[rowIndex]) {
+  async function handleRowGoogleDrive(rowIndex, triggerButton) {
+    const row = state.rows[rowIndex];
+    if (!row) {
       showAlert('danger', 'No se ha encontrado la fila seleccionada.');
       return;
     }
-    showUpcomingFeatureMessage('La integración con Google Drive');
+
+    const certificate = window.certificatePdf;
+    if (!certificate || typeof certificate.generate !== 'function') {
+      showAlert('danger', 'La librería de certificados no está disponible.');
+      return;
+    }
+
+    const drive = window.googleDrive;
+    if (!drive || typeof drive.uploadCertificate !== 'function') {
+      showAlert('danger', 'La integración con Google Drive no está disponible en esta página.');
+      return;
+    }
+
+    if (typeof drive.isConfigured === 'function' && !drive.isConfigured()) {
+      showAlert(
+        'warning',
+        'Configura el identificador de cliente de Google antes de enviar certificados a Drive.'
+      );
+      return;
+    }
+
+    const clientName = sanitiseDriveComponent(row.cliente, '');
+    if (!clientName) {
+      showAlert('warning', 'Introduce el nombre del cliente antes de enviar el certificado a Drive.');
+      return;
+    }
+
+    const trainingTitle = getResolvedTrainingTitle(row);
+    if (!trainingTitle) {
+      showAlert('warning', 'Introduce el título de la formación antes de enviar el certificado a Drive.');
+      return;
+    }
+
+    const primaryDateIso = normaliseDateValue(row.fecha);
+    if (!primaryDateIso) {
+      showAlert(
+        'warning',
+        'Indica la fecha principal de la formación antes de enviar el certificado a Drive.'
+      );
+      return;
+    }
+
+    const sanitisedTrainingTitle = sanitiseDriveComponent(trainingTitle, 'Formación sin título');
+    const trainingFolderDate = formatDateForFolderName(primaryDateIso);
+    const trainingFolderName = sanitiseDriveComponent(
+      `${sanitisedTrainingTitle} - ${trainingFolderDate}`,
+      'Formación sin título'
+    );
+
+    const clientFolderName = sanitiseDriveComponent(clientName, 'Cliente sin nombre');
+
+    const fallbackStudentName = sanitiseDriveComponent(buildStudentFullName(row), 'Alumno/a');
+    const fallbackDateLabel = formatDateForFileLabel(row.fecha);
+    const fallbackFileName = `${sanitisedTrainingTitle} - ${fallbackStudentName} - ${fallbackDateLabel}.pdf`;
+
+    const fileName =
+      typeof certificate.buildFileName === 'function'
+        ? certificate.buildFileName(row)
+        : fallbackFileName;
+
+    let originalHtml = '';
+    if (triggerButton instanceof HTMLButtonElement) {
+      originalHtml = triggerButton.innerHTML;
+      triggerButton.disabled = true;
+      triggerButton.setAttribute('aria-busy', 'true');
+      triggerButton.innerHTML =
+        '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+    }
+
+    try {
+      const { blob } = await certificate.generate(row, { download: false });
+      if (!(blob instanceof Blob)) {
+        throw new Error('No se ha podido generar el archivo PDF del certificado.');
+      }
+
+      await drive.uploadCertificate({
+        clientFolderName,
+        trainingFolderName,
+        fileName,
+        blob
+      });
+
+      showAlert('success', 'Certificado guardado correctamente en Google Drive.');
+    } catch (error) {
+      console.error('No se ha podido guardar el certificado en Google Drive', error);
+      showAlert('danger', translateGoogleDriveError(error));
+    } finally {
+      if (triggerButton instanceof HTMLButtonElement) {
+        triggerButton.disabled = false;
+        triggerButton.innerHTML = originalHtml || '';
+        triggerButton.removeAttribute('aria-busy');
+      }
+    }
   }
 
   function handleRowEmail(rowIndex) {
@@ -1609,6 +1702,107 @@
     }
 
     return parsed.toISOString().split('T')[0];
+  }
+
+  function normaliseTextValue(value) {
+    if (value === undefined || value === null) {
+      return '';
+    }
+    return String(value).trim();
+  }
+
+  function sanitiseDriveComponent(value, fallback) {
+    const cleaned = normaliseTextValue(value)
+      .replace(/[\n\r]/g, ' ')
+      .replace(/[\\/:*?"<>|]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return cleaned || fallback;
+  }
+
+  function getResolvedTrainingTitle(row) {
+    if (!row) {
+      return '';
+    }
+
+    if (window.certificatePdf && typeof window.certificatePdf.resolveTrainingTitle === 'function') {
+      const resolved = window.certificatePdf.resolveTrainingTitle(row);
+      const normalisedResolved = normaliseTextValue(resolved);
+      if (normalisedResolved) {
+        return normalisedResolved;
+      }
+    }
+
+    if (trainingTemplates && typeof trainingTemplates.getTrainingTitle === 'function') {
+      const templateTitle = trainingTemplates.getTrainingTitle(row.formacion);
+      const normalisedTemplate = normaliseTextValue(templateTitle);
+      if (normalisedTemplate) {
+        return normalisedTemplate;
+      }
+    }
+
+    return normaliseTextValue(row.formacion);
+  }
+
+  function buildStudentFullName(row) {
+    if (!row) {
+      return '';
+    }
+    const name = normaliseTextValue(row.nombre);
+    const surname = normaliseTextValue(row.apellido);
+    return [name, surname].filter(Boolean).join(' ').trim();
+  }
+
+  function formatDateForFolderName(value) {
+    const iso = normaliseDateValue(value);
+    if (iso) {
+      return iso;
+    }
+    const fallback = normaliseTextValue(value);
+    return fallback || 'Fecha sin definir';
+  }
+
+  function formatDateForFileLabel(value) {
+    if (window.certificatePdf && typeof window.certificatePdf.formatDateForFileName === 'function') {
+      const formatted = window.certificatePdf.formatDateForFileName(value);
+      const normalisedFormatted = normaliseTextValue(formatted);
+      if (normalisedFormatted) {
+        return normalisedFormatted;
+      }
+    }
+
+    const iso = normaliseDateValue(value);
+    if (iso) {
+      const [year, month, day] = iso.split('-');
+      return `${day}-${month}-${year}`;
+    }
+
+    return normaliseTextValue(value) || 'Fecha sin definir';
+  }
+
+  function translateGoogleDriveError(error) {
+    if (!error) {
+      return 'No se ha podido guardar el certificado en Google Drive. Inténtalo de nuevo.';
+    }
+
+    if (error.code === 'access_denied') {
+      return 'Se ha cancelado la autorización de Google Drive.';
+    }
+
+    if (error instanceof TypeError) {
+      return 'No se ha podido conectar con Google Drive. Comprueba tu conexión e inténtalo de nuevo.';
+    }
+
+    if (typeof error.status === 'number' && error.status === 401) {
+      return 'Google Drive ha rechazado la autorización. Vuelve a iniciar sesión e inténtalo de nuevo.';
+    }
+
+    const message = normaliseTextValue(error.message);
+    if (message) {
+      return message;
+    }
+
+    return 'No se ha podido guardar el certificado en Google Drive. Inténtalo de nuevo.';
   }
 
   function setLoading(isLoading) {

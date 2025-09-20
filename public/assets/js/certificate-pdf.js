@@ -541,17 +541,69 @@
     };
   }
 
+  function resolveTrainingTitle(row) {
+    if (trainingTemplates && typeof trainingTemplates.getTrainingTitle === 'function') {
+      const templateTitle = trainingTemplates.getTrainingTitle(row?.formacion);
+      const normalised = normaliseText(templateTitle);
+      if (normalised) {
+        return normalised;
+      }
+    }
+
+    const rawTitle = normaliseText(row?.formacion);
+    return rawTitle || 'Formación sin título';
+  }
+
+  function normaliseIsoDate(value) {
+    const text = normaliseText(value);
+    if (!text) {
+      return '';
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+      return text;
+    }
+
+    const parsed = new Date(text);
+    if (Number.isNaN(parsed.getTime())) {
+      return '';
+    }
+
+    return parsed.toISOString().split('T')[0];
+  }
+
+  function formatDateForFileName(value) {
+    const iso = normaliseIsoDate(value);
+    if (iso) {
+      const [year, month, day] = iso.split('-');
+      return `${day}-${month}-${year}`;
+    }
+
+    const fallback = normaliseText(value);
+    if (fallback) {
+      return fallback.replace(/[\\/]+/g, '-').replace(/\s+/g, ' ');
+    }
+
+    return 'Fecha sin definir';
+  }
+
+  function sanitiseFileNameComponent(value, fallback) {
+    const text = normaliseText(value);
+    const cleaned = text
+      .replace(/[\n\r]/g, ' ')
+      .replace(/[\\/:*?"<>|]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return cleaned || fallback;
+  }
+
   function buildFileName(row) {
-    const name = buildFullName(row).toLowerCase();
-    const safeName = name
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '');
-    const dealId = normaliseText(row.presupuesto);
-    const suffix = dealId ? `-${dealId}` : '';
-    const base = safeName || 'certificado';
-    return `${base}${suffix}.pdf`;
+    const trainingTitle = sanitiseFileNameComponent(resolveTrainingTitle(row), 'Formación');
+    const studentName = sanitiseFileNameComponent(buildFullName(row), 'Alumno/a');
+    const trainingDate = sanitiseFileNameComponent(formatDateForFileName(row?.fecha), 'Fecha sin definir');
+    const baseName = `${trainingTitle} - ${studentName} - ${trainingDate}`.trim();
+    const safeName = baseName || 'Certificado';
+    return `${safeName}.pdf`;
   }
 
   function buildDocStyles() {
@@ -640,9 +692,7 @@
     const trainingDate = formatTrainingDateRange(row.fecha, row.segundaFecha);
     const location = formatLocation(row.lugar);
     const duration = formatDuration(row.duracion);
-    const trainingTitle = trainingTemplates
-      ? trainingTemplates.getTrainingTitle(row.formacion)
-      : row.formacion;
+    const trainingTitle = resolveTrainingTitle(row);
     const trainingName = formatTrainingName(trainingTitle);
     const trainingDetails = trainingTemplates
       ? trainingTemplates.getTrainingDetails(row.formacion)
@@ -802,12 +852,15 @@
     }, 0);
   }
 
-  async function generateCertificate(row) {
+  async function generateCertificate(row, options = {}) {
     if (!global.pdfMake || typeof global.pdfMake.createPdf !== 'function') {
       throw new Error('pdfMake no está disponible.');
     }
     const docDefinition = await buildDocDefinition(row || {});
     const fileName = buildFileName(row || {});
+    const downloadEnabled = Object.prototype.hasOwnProperty.call(options || {}, 'download')
+      ? Boolean(options.download)
+      : true;
 
     return new Promise((resolve, reject) => {
       let pdfDocument;
@@ -821,8 +874,10 @@
       try {
         pdfDocument.getBlob((blob) => {
           try {
-            triggerDownload(blob, fileName);
-            resolve({ fileName });
+            if (downloadEnabled) {
+              triggerDownload(blob, fileName);
+            }
+            resolve({ fileName, blob });
           } catch (error) {
             reject(error);
           }
@@ -835,6 +890,9 @@
 
   global.certificatePdf = {
     generate: generateCertificate,
-    buildDocDefinition
+    buildDocDefinition,
+    buildFileName,
+    resolveTrainingTitle,
+    formatDateForFileName
   };
 })(window);
