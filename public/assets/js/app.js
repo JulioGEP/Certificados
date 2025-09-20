@@ -1140,52 +1140,84 @@
     showAlert('info', `${label} estará disponible próximamente.`);
   }
 
-  async function handleRowGoogleDrive(rowIndex, triggerButton) {
-    const row = state.rows[rowIndex];
-    if (!row) {
-      showAlert('danger', 'No se ha encontrado la fila seleccionada.');
-      return;
-    }
-
+  function resolveCertificateModule() {
     const certificate = window.certificatePdf;
     if (!certificate || typeof certificate.generate !== 'function') {
-      showAlert('danger', 'La librería de certificados no está disponible.');
-      return;
+      return {
+        certificate: null,
+        error: {
+          type: 'danger',
+          message: 'La librería de certificados no está disponible.'
+        }
+      };
     }
 
+    return { certificate };
+  }
+
+  function resolveGoogleDriveIntegration() {
     const drive = window.googleDrive;
     if (!drive || typeof drive.uploadCertificate !== 'function') {
-      showAlert('danger', 'La integración con Google Drive no está disponible en esta página.');
-      return;
+      return {
+        drive: null,
+        error: {
+          type: 'danger',
+          message: 'La integración con Google Drive no está disponible en esta página.'
+        }
+      };
     }
 
     if (typeof drive.isConfigured === 'function' && !drive.isConfigured()) {
-      showAlert(
-        'warning',
-        'Configura el identificador de cliente de Google antes de enviar certificados a Drive.'
-      );
-      return;
+      return {
+        drive: null,
+        error: {
+          type: 'warning',
+          message: 'Configura el identificador de cliente de Google antes de enviar certificados a Drive.'
+        }
+      };
+    }
+
+    return { drive };
+  }
+
+  function buildDriveUploadDetails(row, certificate) {
+    if (!row) {
+      return {
+        error: {
+          type: 'danger',
+          message: 'No se ha encontrado la fila seleccionada.'
+        }
+      };
     }
 
     const clientName = sanitiseDriveComponent(row.cliente, '');
     if (!clientName) {
-      showAlert('warning', 'Introduce el nombre del cliente antes de enviar el certificado a Drive.');
-      return;
+      return {
+        error: {
+          type: 'warning',
+          message: 'Introduce el nombre del cliente antes de enviar el certificado a Drive.'
+        }
+      };
     }
 
     const trainingTitle = getResolvedTrainingTitle(row);
     if (!trainingTitle) {
-      showAlert('warning', 'Introduce el título de la formación antes de enviar el certificado a Drive.');
-      return;
+      return {
+        error: {
+          type: 'warning',
+          message: 'Introduce el título de la formación antes de enviar el certificado a Drive.'
+        }
+      };
     }
 
     const primaryDateIso = normaliseDateValue(row.fecha);
     if (!primaryDateIso) {
-      showAlert(
-        'warning',
-        'Indica la fecha principal de la formación antes de enviar el certificado a Drive.'
-      );
-      return;
+      return {
+        error: {
+          type: 'warning',
+          message: 'Indica la fecha principal de la formación antes de enviar el certificado a Drive.'
+        }
+      };
     }
 
     const sanitisedTrainingTitle = sanitiseDriveComponent(trainingTitle, 'Formación sin título');
@@ -1202,9 +1234,47 @@
     const fallbackFileName = `${sanitisedTrainingTitle} - ${fallbackStudentName} - ${fallbackDateLabel}.pdf`;
 
     const fileName =
-      typeof certificate.buildFileName === 'function'
+      certificate && typeof certificate.buildFileName === 'function'
         ? certificate.buildFileName(row)
         : fallbackFileName;
+
+    return {
+      clientFolderName,
+      trainingFolderName,
+      fileName: fileName || fallbackFileName
+    };
+  }
+
+  async function handleRowGoogleDrive(rowIndex, triggerButton) {
+    const row = state.rows[rowIndex];
+    if (!row) {
+      showAlert('danger', 'No se ha encontrado la fila seleccionada.');
+      return;
+    }
+
+    const { certificate, error: certificateError } = resolveCertificateModule();
+    if (!certificate) {
+      if (certificateError) {
+        showAlert(certificateError.type || 'danger', certificateError.message);
+      }
+      return;
+    }
+
+    const { drive, error: driveError } = resolveGoogleDriveIntegration();
+    if (!drive) {
+      if (driveError) {
+        showAlert(driveError.type || 'danger', driveError.message);
+      }
+      return;
+    }
+
+    const driveDetails = buildDriveUploadDetails(row, certificate);
+    if (driveDetails.error) {
+      showAlert(driveDetails.error.type || 'warning', driveDetails.error.message);
+      return;
+    }
+
+    const { clientFolderName, trainingFolderName, fileName } = driveDetails;
 
     let originalHtml = '';
     if (triggerButton instanceof HTMLButtonElement) {
@@ -1300,12 +1370,106 @@
     updateActionButtonsState();
   }
 
-  function handleSendAllToDrive() {
+  async function handleSendAllToDrive() {
     if (!state.rows.length) {
       showAlert('info', 'Añade al menos un alumn@ antes de usar esta acción.');
       return;
     }
-    showUpcomingFeatureMessage('La integración con Google Drive');
+
+    const { certificate, error: certificateError } = resolveCertificateModule();
+    if (!certificate) {
+      if (certificateError) {
+        showAlert(certificateError.type || 'danger', certificateError.message);
+      }
+      return;
+    }
+
+    const { drive, error: driveError } = resolveGoogleDriveIntegration();
+    if (!drive) {
+      if (driveError) {
+        showAlert(driveError.type || 'danger', driveError.message);
+      }
+      return;
+    }
+
+    const triggerButton = elements.sendAllToDrive;
+    let originalHtml = '';
+
+    if (triggerButton instanceof HTMLButtonElement) {
+      originalHtml = triggerButton.innerHTML;
+      triggerButton.disabled = true;
+      triggerButton.setAttribute('aria-busy', 'true');
+      triggerButton.innerHTML =
+        '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+    }
+
+    const rowsSnapshot = state.rows.map((row, index) => ({ row, index }));
+    const failedRows = [];
+
+    for (const { row, index } of rowsSnapshot) {
+      const details = buildDriveUploadDetails(row, certificate);
+      if (details.error) {
+        console.warn(
+          `La fila ${index + 1} no se puede guardar en Google Drive: ${details.error.message}`
+        );
+        failedRows.push({ index, message: details.error.message });
+        continue;
+      }
+
+      try {
+        const { blob } = await certificate.generate(row, { download: false });
+        if (!(blob instanceof Blob)) {
+          throw new Error('No se ha podido generar el archivo PDF del certificado.');
+        }
+
+        await drive.uploadCertificate({
+          clientFolderName: details.clientFolderName,
+          trainingFolderName: details.trainingFolderName,
+          fileName: details.fileName,
+          blob
+        });
+      } catch (error) {
+        console.error(
+          `No se ha podido guardar el certificado en Google Drive de la fila ${index + 1}`,
+          error
+        );
+        failedRows.push({ index, message: translateGoogleDriveError(error) });
+      }
+    }
+
+    const totalRows = rowsSnapshot.length;
+    const failedCount = failedRows.length;
+
+    if (failedCount === 0) {
+      showAlert('success', 'Todos los certificados se han guardado correctamente en Google Drive.');
+    } else {
+      const detailMessages = failedRows
+        .map((item) => {
+          const message = normaliseTextValue(item.message) || 'Error desconocido.';
+          return `Fila ${item.index + 1}: ${message}`;
+        })
+        .join(' ');
+
+      if (failedCount === totalRows) {
+        const summary = detailMessages
+          ? `No se ha podido guardar ningún certificado en Google Drive. ${detailMessages}`
+          : 'No se ha podido guardar ningún certificado en Google Drive. Revisa los datos e inténtalo de nuevo.';
+        showAlert('danger', summary);
+      } else {
+        const summary = detailMessages
+          ? `Algunos certificados no se han podido guardar en Google Drive. ${detailMessages}`
+          : 'Algunos certificados no se han podido guardar en Google Drive. Inténtalo de nuevo.';
+        showAlert('warning', summary);
+      }
+    }
+
+    if (triggerButton instanceof HTMLButtonElement) {
+      triggerButton.disabled = false;
+      triggerButton.innerHTML = originalHtml || '';
+      triggerButton.removeAttribute('aria-busy');
+    }
+
+    updateActionButtonsState();
   }
 
   function handleSendAllByEmail() {
