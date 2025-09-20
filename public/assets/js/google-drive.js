@@ -229,11 +229,11 @@
     }
   }
 
-  async function searchItemByName({ name, parentId, mimeType }) {
+  async function listItemsByName({ name, parentId, mimeType }) {
     const query = buildDriveQuery({ name, parentId, mimeType });
     const params = new URLSearchParams({
       q: query,
-      pageSize: '10',
+      pageSize: '100',
       fields: 'files(id,name,mimeType,parents,webViewLink)',
       includeItemsFromAllDrives: 'true',
       supportsAllDrives: 'true',
@@ -241,9 +241,27 @@
     });
     const data = await driveRequest(`/files?${params.toString()}`, { method: 'GET' });
     if (!data || !Array.isArray(data.files) || !data.files.length) {
+      return [];
+    }
+    return data.files;
+  }
+
+  async function searchItemByName({ name, parentId, mimeType }) {
+    const items = await listItemsByName({ name, parentId, mimeType });
+    if (!items.length) {
       return null;
     }
-    return data.files[0];
+    return items[0];
+  }
+
+  async function deleteFileById(fileId) {
+    if (!fileId) {
+      return;
+    }
+
+    const params = new URLSearchParams({ supportsAllDrives: 'true' });
+    const encodedId = encodeURIComponent(fileId);
+    await driveRequest(`/files/${encodedId}?${params.toString()}`, { method: 'DELETE' });
   }
 
   function sanitiseDriveName(value, fallback) {
@@ -319,11 +337,25 @@
     const safeName = sanitiseDriveName(name, 'certificado.pdf');
     const parentId = Array.isArray(parents) ? parents[0] : parents;
 
-    const existing = await searchItemByName({
+    const existingFiles = await listItemsByName({
       name: safeName,
       parentId,
       mimeType: PDF_MIME_TYPE
     });
+
+    if (existingFiles.length) {
+      await Promise.all(
+        existingFiles.map((file) =>
+          deleteFileById(file.id).catch((error) => {
+            const deletionError = new Error(
+              `No se ha podido eliminar el archivo anterior "${safeName}" de Google Drive.`
+            );
+            deletionError.cause = error;
+            throw deletionError;
+          })
+        )
+      );
+    }
 
     const metadata = {
       name: safeName,
@@ -338,15 +370,9 @@
       supportsAllDrives: 'true'
     });
 
-    const path = existing
-      ? `${DRIVE_UPLOAD_BASE}/files/${existing.id}?${params.toString()}`
-      : `${DRIVE_UPLOAD_BASE}/files?${params.toString()}`;
-
-    const method = existing ? 'PATCH' : 'POST';
-
     const accessToken = await ensureAccessToken();
-    const response = await fetch(path, {
-      method,
+    const response = await fetch(`${DRIVE_UPLOAD_BASE}/files?${params.toString()}`, {
+      method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': `multipart/related; boundary=${boundary}`,
@@ -364,8 +390,7 @@
       }
 
       const message =
-        errorPayload?.error?.message ||
-        `Error ${response.status} al ${existing ? 'actualizar' : 'subir'} el archivo en Google Drive.`;
+        errorPayload?.error?.message || `Error ${response.status} al subir el archivo en Google Drive.`;
       const error = new Error(message);
       error.status = response.status;
       error.details = errorPayload;
