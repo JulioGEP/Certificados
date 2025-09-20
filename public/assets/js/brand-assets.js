@@ -1,6 +1,6 @@
 (function () {
   const HERO_LOGO_PATH = 'assets/GEP-Group_Logotipo_horizontal.png';
-  const FAVICON_PATH = 'assets/GEP_Logo_Icono_GRIS.jpg';
+  const FAVICON_PATH = 'assets/GEP_Logo_Icono_Rojo.png';
 
   document.addEventListener('DOMContentLoaded', () => {
     const heroLogo = document.querySelector('.hero-logo');
@@ -15,7 +15,7 @@
       document.head.appendChild(faviconLink);
     }
 
-    faviconLink.setAttribute('type', 'image/jpeg');
+    faviconLink.setAttribute('type', 'image/png');
     faviconLink.href = FAVICON_PATH;
   });
 })();
