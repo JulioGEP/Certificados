@@ -180,7 +180,19 @@
 
   async function driveRequest(path, options = {}) {
     const accessToken = await ensureAccessToken();
-    const url = path instanceof URL ? path : new URL(path, DRIVE_API_BASE);
+    let url;
+    if (path instanceof URL) {
+      url = path;
+    } else {
+      const base = DRIVE_API_BASE.endsWith('/')
+        ? DRIVE_API_BASE
+        : `${DRIVE_API_BASE}/`;
+      const pathString = String(path);
+      const normalisedPath = /^https?:/i.test(pathString)
+        ? pathString
+        : pathString.replace(/^\/+/, '');
+      url = new URL(normalisedPath, base);
+    }
     const headers = new Headers(options.headers || {});
     headers.set('Authorization', `Bearer ${accessToken}`);
     if (!headers.has('Accept')) {
