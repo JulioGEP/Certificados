@@ -8,6 +8,7 @@
     'Luís Vicent Pérez - Irata: 1/175398',
     'Isaac El Allaoui Algaba: Técnico Irata: 1/248469'
   ];
+  const ACCOUNTING_EMAIL = 'contabilidad@gepgroup.es';
   const TRABAJOS_VERTICALES_KEY = 'trabajos verticales';
   const TABLE_COLUMNS = [
     { field: 'presupuesto', label: 'Presu', type: 'text', placeholder: 'ID del deal' },
@@ -60,7 +61,17 @@
     addTheoryPoint: document.getElementById('add-theory-point'),
     addPracticePoint: document.getElementById('add-practice-point'),
     theoryList: document.getElementById('theory-list'),
-    practiceList: document.getElementById('practice-list')
+    practiceList: document.getElementById('practice-list'),
+    emailModal: document.getElementById('email-modal'),
+    emailForm: document.getElementById('email-form'),
+    emailToInput: document.getElementById('email-to'),
+    emailCcInput: document.getElementById('email-cc'),
+    emailBccInput: document.getElementById('email-bcc'),
+    emailBodyInput: document.getElementById('email-body'),
+    emailSubjectInput: document.getElementById('email-subject'),
+    emailSubjectPreview: document.getElementById('email-subject-preview'),
+    emailStatus: document.getElementById('email-status'),
+    emailSendButton: document.getElementById('email-send-button')
   };
 
   const state = {
@@ -74,6 +85,15 @@
     lastSelectedTemplateId: '',
     modalInstance: null,
     unsubscribe: null
+  };
+
+  const emailModalState = {
+    modalInstance: null,
+    currentRowIndex: -1,
+    isSending: false,
+    sendButtonOriginalLabel: '',
+    autoCloseTimeoutId: null,
+    initialised: false
   };
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -94,6 +114,7 @@
       elements.sendAllByEmail.addEventListener('click', handleSendAllByEmail);
     }
     setupTemplateManagement();
+    setupEmailModal();
   }
 
   function setupTemplateManagement() {
@@ -743,7 +764,14 @@
       irata: '',
       personaContacto: '',
       correoContacto: '',
-      contactPersonId: ''
+      contactPersonId: '',
+      driveFileId: '',
+      driveFileName: '',
+      driveFileUrl: '',
+      driveFileDownloadUrl: '',
+      driveClientFolderId: '',
+      driveTrainingFolderId: '',
+      driveUploadedAt: ''
     };
   }
 
@@ -1268,14 +1296,6 @@
       return;
     }
 
-    const driveDetails = buildDriveUploadDetails(row, certificate);
-    if (driveDetails.error) {
-      showAlert(driveDetails.error.type || 'warning', driveDetails.error.message);
-      return;
-    }
-
-    const { clientFolderName, trainingFolderName, fileName } = driveDetails;
-
     let originalHtml = '';
     if (triggerButton instanceof HTMLButtonElement) {
       originalHtml = triggerButton.innerHTML;
@@ -1286,22 +1306,19 @@
     }
 
     try {
-      const { blob } = await certificate.generate(row, { download: false });
-      if (!(blob instanceof Blob)) {
-        throw new Error('No se ha podido generar el archivo PDF del certificado.');
+      const result = await uploadRowCertificateToDrive(rowIndex, { drive, certificate });
+      if (result && result.warning && result.warning.message) {
+        showAlert(result.warning.type || 'warning', result.warning.message);
       }
-
-      await drive.uploadCertificate({
-        clientFolderName,
-        trainingFolderName,
-        fileName,
-        blob
-      });
-
       showAlert('success', 'Certificado guardado correctamente en Google Drive.');
     } catch (error) {
       console.error('No se ha podido guardar el certificado en Google Drive', error);
-      showAlert('danger', translateGoogleDriveError(error));
+      const userFacing = error && error.userFacing ? error.userFacing : null;
+      if (userFacing && userFacing.message) {
+        showAlert(userFacing.type || 'danger', userFacing.message);
+      } else {
+        showAlert('danger', translateGoogleDriveError(error));
+      }
     } finally {
       if (triggerButton instanceof HTMLButtonElement) {
         triggerButton.disabled = false;
@@ -1312,11 +1329,27 @@
   }
 
   function handleRowEmail(rowIndex) {
-    if (!state.rows[rowIndex]) {
+    const row = state.rows[rowIndex];
+    if (!row) {
       showAlert('danger', 'No se ha encontrado la fila seleccionada.');
       return;
     }
-    showUpcomingFeatureMessage('El envío por correo');
+
+    if (!emailModalState.initialised || !emailModalState.modalInstance) {
+      showAlert('warning', 'El envío por correo no está disponible en este momento.');
+      return;
+    }
+
+    if (emailModalState.autoCloseTimeoutId) {
+      window.clearTimeout(emailModalState.autoCloseTimeoutId);
+      emailModalState.autoCloseTimeoutId = null;
+    }
+
+    emailModalState.currentRowIndex = rowIndex;
+    setEmailModalLoading(false);
+    setEmailModalStatus('');
+    populateEmailModalFields(row);
+    emailModalState.modalInstance.show();
   }
 
   async function handleGenerateAllCertificates() {
@@ -1403,41 +1436,29 @@
         '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
     }
 
-    const rowsSnapshot = state.rows.map((row, index) => ({ row, index }));
+    const rowIndexes = state.rows.map((_, index) => index);
     const failedRows = [];
+    const warningRows = [];
 
-    for (const { row, index } of rowsSnapshot) {
-      const details = buildDriveUploadDetails(row, certificate);
-      if (details.error) {
-        console.warn(
-          `La fila ${index + 1} no se puede guardar en Google Drive: ${details.error.message}`
-        );
-        failedRows.push({ index, message: details.error.message });
-        continue;
-      }
-
+    for (const index of rowIndexes) {
       try {
-        const { blob } = await certificate.generate(row, { download: false });
-        if (!(blob instanceof Blob)) {
-          throw new Error('No se ha podido generar el archivo PDF del certificado.');
+        const result = await uploadRowCertificateToDrive(index, { drive, certificate });
+        if (result && result.warning && result.warning.message) {
+          warningRows.push({ index, message: result.warning.message, type: result.warning.type || 'warning' });
         }
-
-        await drive.uploadCertificate({
-          clientFolderName: details.clientFolderName,
-          trainingFolderName: details.trainingFolderName,
-          fileName: details.fileName,
-          blob
-        });
       } catch (error) {
         console.error(
           `No se ha podido guardar el certificado en Google Drive de la fila ${index + 1}`,
           error
         );
-        failedRows.push({ index, message: translateGoogleDriveError(error) });
+        const userFacing = error && error.userFacing ? error.userFacing : null;
+        const message =
+          (userFacing && userFacing.message) || translateGoogleDriveError(error) || 'Error desconocido.';
+        failedRows.push({ index, message });
       }
     }
 
-    const totalRows = rowsSnapshot.length;
+    const totalRows = rowIndexes.length;
     const failedCount = failedRows.length;
 
     if (failedCount === 0) {
@@ -1463,6 +1484,16 @@
       }
     }
 
+    if (warningRows.length) {
+      const warningSummary = warningRows
+        .map((item) => {
+          const message = normaliseTextValue(item.message) || 'Revisa los permisos del archivo en Google Drive.';
+          return `Fila ${item.index + 1}: ${message}`;
+        })
+        .join(' ');
+      showAlert('warning', warningSummary);
+    }
+
     if (triggerButton instanceof HTMLButtonElement) {
       triggerButton.disabled = false;
       triggerButton.innerHTML = originalHtml || '';
@@ -1478,6 +1509,128 @@
       return;
     }
     showUpcomingFeatureMessage('El envío por correo');
+  }
+
+  async function handleEmailFormSubmit(event) {
+    event.preventDefault();
+
+    if (emailModalState.isSending) {
+      return;
+    }
+
+    const rowIndex = emailModalState.currentRowIndex;
+    const row = state.rows[rowIndex];
+    if (!row) {
+      setEmailModalStatus('La fila seleccionada ya no está disponible.', 'danger');
+      setEmailModalLoading(false);
+      return;
+    }
+
+    const toValue = normaliseEmailInput(elements.emailToInput ? elements.emailToInput.value : '');
+    const ccValue = normaliseEmailInput(elements.emailCcInput ? elements.emailCcInput.value : '');
+    const bccValue = normaliseEmailInput(elements.emailBccInput ? elements.emailBccInput.value : '');
+    const subjectValue =
+      elements.emailSubjectInput && elements.emailSubjectInput.value
+        ? elements.emailSubjectInput.value.trim()
+        : buildEmailSubject(row);
+    let bodyValue = elements.emailBodyInput ? elements.emailBodyInput.value : '';
+
+    if (!toValue) {
+      setEmailModalStatus('Introduce al menos un destinatario en el campo "Para".', 'warning');
+      if (elements.emailToInput) {
+        elements.emailToInput.focus();
+      }
+      return;
+    }
+
+    setEmailModalLoading(true);
+    setEmailModalStatus('Preparando el certificado…', 'info');
+
+    const ensureResult = await ensureRowHasDriveFile(rowIndex, {
+      onStatusChange: (message, type) => {
+        if (message) {
+          setEmailModalStatus(message, type);
+        }
+      }
+    });
+
+    if (ensureResult.error) {
+      setEmailModalStatus(ensureResult.error.message, ensureResult.error.type || 'danger');
+      setEmailModalLoading(false);
+      return;
+    }
+
+    if (ensureResult.warning && ensureResult.warning.message) {
+      setEmailModalStatus(ensureResult.warning.message, ensureResult.warning.type || 'warning');
+    }
+
+    const publicLink = ensureResult.link;
+    if (!publicLink) {
+      setEmailModalStatus(
+        'No se ha podido obtener un enlace público al certificado. Revisa Google Drive e inténtalo de nuevo.',
+        'danger'
+      );
+      setEmailModalLoading(false);
+      return;
+    }
+
+    const updatedBody = ensureEmailBodyHasLink(bodyValue, publicLink);
+    if (updatedBody.didUpdate) {
+      bodyValue = updatedBody.updatedBody;
+      if (elements.emailBodyInput) {
+        elements.emailBodyInput.value = bodyValue;
+      }
+    }
+
+    const { gmail, error: gmailError } = resolveGoogleGmailIntegration();
+    if (!gmail) {
+      if (gmailError) {
+        setEmailModalStatus(gmailError.message, gmailError.type || 'danger');
+      } else {
+        setEmailModalStatus('La integración con Gmail no está disponible.', 'danger');
+      }
+      setEmailModalLoading(false);
+      return;
+    }
+
+    setEmailModalStatus('Enviando correo…', 'info');
+
+    try {
+      await gmail.sendEmail({
+        to: toValue,
+        cc: ccValue || '',
+        bcc: bccValue || '',
+        subject: subjectValue,
+        body: bodyValue
+      });
+
+      setEmailModalStatus('Correo enviado correctamente.', 'success');
+
+      if (toValue && row.correoContacto !== toValue) {
+        updateRowValue(rowIndex, 'correoContacto', toValue);
+      }
+
+      if (row.presupuesto) {
+        storeDealContact(row.presupuesto, {
+          contactName: row.personaContacto || '',
+          contactEmail: toValue,
+          contactPersonId: row.contactPersonId || ''
+        });
+      }
+
+      emailModalState.autoCloseTimeoutId = window.setTimeout(() => {
+        if (emailModalState.modalInstance) {
+          emailModalState.modalInstance.hide();
+        }
+      }, 1600);
+    } catch (error) {
+      console.error('No se ha podido enviar el correo', error);
+      setEmailModalStatus(translateGmailError(error), 'danger');
+      setEmailModalLoading(false);
+      return;
+    }
+
+    setEmailModalLoading(false);
   }
 
   async function handleBudgetSubmit(event) {
@@ -1694,6 +1847,548 @@
     clearStoredDealContacts();
     renderTable();
     showAlert('success', 'Listado vaciado correctamente.');
+  }
+
+  function setupEmailModal() {
+    if (emailModalState.initialised) {
+      return;
+    }
+
+    const {
+      emailModal,
+      emailForm,
+      emailToInput,
+      emailCcInput,
+      emailBccInput,
+      emailBodyInput,
+      emailSendButton,
+      emailSubjectPreview
+    } = elements;
+
+    if (!emailModal || !emailForm || !emailToInput || !emailBodyInput || !emailSendButton || !emailSubjectPreview) {
+      return;
+    }
+
+    const bootstrapModal = window.bootstrap && window.bootstrap.Modal ? window.bootstrap.Modal : null;
+    if (!bootstrapModal) {
+      console.warn('Bootstrap Modal no disponible para el envío de correos.');
+      return;
+    }
+
+    emailModalState.modalInstance = bootstrapModal.getOrCreateInstance(emailModal);
+    emailModalState.initialised = true;
+    emailModalState.sendButtonOriginalLabel = emailSendButton.innerHTML;
+
+    emailForm.addEventListener('submit', handleEmailFormSubmit);
+
+    emailModal.addEventListener('shown.bs.modal', () => {
+      window.setTimeout(() => {
+        if (elements.emailToInput) {
+          elements.emailToInput.focus();
+          elements.emailToInput.select();
+        }
+      }, 150);
+    });
+
+    emailModal.addEventListener('hidden.bs.modal', () => {
+      resetEmailModalState();
+    });
+
+    const inputsToWatch = [emailToInput, emailBccInput, emailBodyInput];
+    inputsToWatch.forEach((input) => {
+      if (!input) {
+        return;
+      }
+      input.addEventListener('input', () => {
+        if (input === emailToInput) {
+          updateEmailSendButtonState();
+        }
+      });
+      if (input !== emailBodyInput) {
+        input.addEventListener('blur', (event) => {
+          event.target.value = normaliseEmailInput(event.target.value);
+        });
+      }
+    });
+
+    if (emailCcInput) {
+      emailCcInput.readOnly = true;
+    }
+
+    updateEmailSendButtonState();
+  }
+
+  function resetEmailModalState() {
+    if (emailModalState.autoCloseTimeoutId) {
+      window.clearTimeout(emailModalState.autoCloseTimeoutId);
+      emailModalState.autoCloseTimeoutId = null;
+    }
+
+    emailModalState.currentRowIndex = -1;
+    emailModalState.isSending = false;
+
+    if (elements.emailForm) {
+      elements.emailForm.reset();
+    }
+
+    if (elements.emailSubjectPreview) {
+      elements.emailSubjectPreview.textContent = '';
+    }
+
+    if (elements.emailCcInput) {
+      elements.emailCcInput.value = ACCOUNTING_EMAIL;
+    }
+
+    setEmailModalStatus('');
+    setEmailModalLoading(false);
+  }
+
+  function populateEmailModalFields(row) {
+    if (!row) {
+      return;
+    }
+
+    if (elements.emailToInput) {
+      elements.emailToInput.value = normaliseEmailInput(row.correoContacto || '');
+    }
+
+    if (elements.emailCcInput) {
+      elements.emailCcInput.value = ACCOUNTING_EMAIL;
+    }
+
+    if (elements.emailBccInput) {
+      elements.emailBccInput.value = '';
+    }
+
+    const subject = buildEmailSubject(row);
+    if (elements.emailSubjectInput) {
+      elements.emailSubjectInput.value = subject;
+    }
+    if (elements.emailSubjectPreview) {
+      elements.emailSubjectPreview.textContent = subject;
+    }
+
+    const body = buildEmailBody(row);
+    if (elements.emailBodyInput) {
+      elements.emailBodyInput.value = body;
+    }
+
+    updateEmailSendButtonState();
+  }
+
+  function setEmailModalStatus(message, type = 'info') {
+    const { emailStatus } = elements;
+    if (!emailStatus) {
+      return;
+    }
+
+    const normalisedMessage = normaliseTextValue(message);
+    if (!normalisedMessage) {
+      emailStatus.className = 'alert d-none';
+      emailStatus.textContent = '';
+      return;
+    }
+
+    emailStatus.className = `alert alert-${type} mb-0`;
+    emailStatus.textContent = normalisedMessage;
+  }
+
+  function setEmailModalLoading(isLoading) {
+    emailModalState.isSending = Boolean(isLoading);
+
+    const controls = [
+      elements.emailToInput,
+      elements.emailCcInput,
+      elements.emailBccInput,
+      elements.emailBodyInput,
+      elements.emailSubjectInput
+    ];
+
+    controls.forEach((control) => {
+      if (!control) {
+        return;
+      }
+      control.disabled = Boolean(isLoading);
+    });
+
+    const { emailSendButton } = elements;
+    if (emailSendButton) {
+      if (isLoading) {
+        emailSendButton.disabled = true;
+        emailSendButton.setAttribute('aria-busy', 'true');
+        emailSendButton.innerHTML =
+          '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Enviando…';
+      } else {
+        emailSendButton.disabled = false;
+        emailSendButton.removeAttribute('aria-busy');
+        emailSendButton.innerHTML = emailModalState.sendButtonOriginalLabel || 'Enviar correo';
+        updateEmailSendButtonState();
+      }
+    }
+  }
+
+  function updateEmailSendButtonState() {
+    const { emailSendButton, emailToInput } = elements;
+    if (!emailSendButton) {
+      return;
+    }
+
+    if (emailModalState.isSending) {
+      emailSendButton.disabled = true;
+      return;
+    }
+
+    const hasRecipient = normaliseTextValue(emailToInput ? emailToInput.value : '');
+    emailSendButton.disabled = !hasRecipient;
+  }
+
+  function normaliseEmailInput(value) {
+    const text = normaliseTextValue(value);
+    if (!text) {
+      return '';
+    }
+
+    const parts = text
+      .split(/[,;]+/)
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0);
+
+    return parts.join(', ');
+  }
+
+  function buildEmailSubject(row) {
+    if (!row) {
+      return 'Certificado de formación';
+    }
+
+    const trainingTitle = getResolvedTrainingTitle(row) || 'formación';
+    const studentName = buildStudentFullName(row) || 'Alumno/a';
+
+    return `Certificado - ${trainingTitle} · ${studentName}`;
+  }
+
+  function buildEmailBody(row) {
+    if (!row) {
+      return '';
+    }
+
+    const studentName = buildStudentFullName(row) || 'Alumno/a';
+    const formattedDate = formatDateForEmail(row.fecha);
+    const location = normaliseTextValue(row.lugar) || 'Barcelona';
+    const trainingTitle = getResolvedTrainingTitle(row) || 'la formación indicada';
+    const link = normaliseTextValue(row.driveFileUrl) || '';
+
+    const lines = [
+      'Hola',
+      '',
+      `Adjuntamos Certificado del alumno/a ${studentName} quien en fecha ${formattedDate} y en ${location} ha superado la formación de ${trainingTitle}`,
+      '',
+      'Responsable Formativo',
+      '',
+      link ? `Descargar certificado: ${link}` : 'Descargar certificado:'
+    ];
+
+    return lines.join('\n');
+  }
+
+  function formatDateForEmail(value) {
+    const iso = normaliseDateValue(value);
+    if (iso) {
+      const date = new Date(`${iso}T00:00:00Z`);
+      if (!Number.isNaN(date.getTime())) {
+        return new Intl.DateTimeFormat('es-ES', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        }).format(date);
+      }
+    }
+
+    const fallback = normaliseTextValue(value);
+    return fallback || '[fecha pendiente]';
+  }
+
+  function ensureEmailBodyHasLink(body, link) {
+    const normalisedLink = normaliseTextValue(link);
+    const normalisedBody = body || '';
+
+    if (!normalisedLink) {
+      return { updatedBody: normalisedBody, didUpdate: false };
+    }
+
+    if (normalisedBody.includes(normalisedLink)) {
+      return { updatedBody: normalisedBody, didUpdate: false };
+    }
+
+    const linkLabelPattern = /(Descargar certificado:\s*)(.*)/i;
+    if (linkLabelPattern.test(normalisedBody)) {
+      const updatedBody = normalisedBody.replace(linkLabelPattern, `$1${normalisedLink}`);
+      return { updatedBody, didUpdate: true };
+    }
+
+    const updatedBody = `${normalisedBody.trim()}
+
+Descargar certificado: ${normalisedLink}`.trim();
+    return { updatedBody, didUpdate: true };
+  }
+
+  async function ensureRowHasDriveFile(rowIndex, { onStatusChange } = {}) {
+    const row = state.rows[rowIndex];
+    if (!row) {
+      return {
+        error: {
+          type: 'danger',
+          message: 'No se ha encontrado la fila seleccionada.'
+        }
+      };
+    }
+
+    if (row.driveFileUrl) {
+      return {
+        link: row.driveFileUrl,
+        metadata: {
+          driveFileUrl: row.driveFileUrl,
+          driveFileDownloadUrl: row.driveFileDownloadUrl || '',
+          driveFileId: row.driveFileId || ''
+        },
+        warning: null
+      };
+    }
+
+    const { drive, error: driveError } = resolveGoogleDriveIntegration();
+    if (!drive) {
+      return {
+        error:
+          driveError || {
+            type: 'danger',
+            message: 'La integración con Google Drive no está disponible.'
+          }
+      };
+    }
+
+    if (!row.driveFileUrl && row.driveFileId && typeof drive.ensurePublicFileAccess === 'function') {
+      try {
+        const shared = await drive.ensurePublicFileAccess({
+          fileId: row.driveFileId,
+          webViewLink: row.driveFileUrl || ''
+        });
+        const link = shared?.webViewLink || shared?.downloadLink || '';
+        if (link) {
+          const metadata = {
+            driveFileUrl: shared.webViewLink || link,
+            driveFileDownloadUrl: shared.downloadLink || '',
+            driveFileId: row.driveFileId
+          };
+          Object.assign(row, metadata);
+          persistRows();
+          return {
+            link: metadata.driveFileUrl || metadata.driveFileDownloadUrl || link,
+            metadata,
+            warning: null
+          };
+        }
+      } catch (error) {
+        console.warn('No se ha podido actualizar el enlace público del archivo existente en Google Drive.', error);
+      }
+    }
+
+    const { certificate, error: certificateError } = resolveCertificateModule();
+    if (!certificate) {
+      return {
+        error:
+          certificateError || {
+            type: 'danger',
+            message: 'La librería de certificados no está disponible.'
+          }
+      };
+    }
+
+    if (typeof onStatusChange === 'function') {
+      onStatusChange('Generando el certificado en PDF…', 'info');
+    }
+
+    try {
+      const result = await uploadRowCertificateToDrive(rowIndex, { drive, certificate });
+      if (result && result.warning && typeof onStatusChange === 'function') {
+        onStatusChange(result.warning.message, result.warning.type || 'warning');
+      }
+
+      const metadata = result ? result.metadata : null;
+      const link =
+        metadata && (metadata.driveFileUrl || metadata.driveFileDownloadUrl)
+          ? metadata.driveFileUrl || metadata.driveFileDownloadUrl
+          : '';
+
+      return {
+        link,
+        metadata,
+        warning: result ? result.warning : null
+      };
+    } catch (error) {
+      const userFacing = error && error.userFacing ? error.userFacing : null;
+      return {
+        error:
+          userFacing || {
+            type: 'danger',
+            message: translateGoogleDriveError(error)
+          }
+      };
+    }
+  }
+
+  async function uploadRowCertificateToDrive(rowIndex, { drive, certificate }) {
+    const row = state.rows[rowIndex];
+    if (!row) {
+      const error = new Error('No se ha encontrado la fila seleccionada.');
+      error.userFacing = {
+        type: 'danger',
+        message: 'No se ha encontrado la fila seleccionada.'
+      };
+      throw error;
+    }
+
+    const driveDetails = buildDriveUploadDetails(row, certificate);
+    if (driveDetails.error) {
+      const error = new Error(driveDetails.error.message);
+      error.userFacing = driveDetails.error;
+      throw error;
+    }
+
+    const { clientFolderName, trainingFolderName, fileName } = driveDetails;
+
+    let generated;
+    try {
+      generated = await certificate.generate(row, { download: false });
+    } catch (error) {
+      const enriched = error instanceof Error ? error : new Error('No se ha podido generar el certificado en PDF.');
+      if (!enriched.userFacing) {
+        enriched.userFacing = {
+          type: 'danger',
+          message: 'No se ha podido generar el certificado en PDF. Revisa los datos e inténtalo de nuevo.'
+        };
+      }
+      throw enriched;
+    }
+
+    const blob = generated && generated.blob ? generated.blob : null;
+    if (!(blob instanceof Blob)) {
+      const error = new Error('No se ha podido generar el archivo PDF del certificado.');
+      error.userFacing = {
+        type: 'danger',
+        message: 'No se ha podido generar el certificado en PDF. Revisa los datos e inténtalo de nuevo.'
+      };
+      throw error;
+    }
+
+    let uploadResult;
+    try {
+      uploadResult = await drive.uploadCertificate({
+        clientFolderName,
+        trainingFolderName,
+        fileName,
+        blob
+      });
+    } catch (error) {
+      const enriched = error instanceof Error ? error : new Error('No se ha podido guardar el certificado en Google Drive.');
+      enriched.userFacing = {
+        type: 'danger',
+        message: translateGoogleDriveError(error)
+      };
+      throw enriched;
+    }
+
+    let publicMetadata = null;
+    let warning = null;
+    if (uploadResult && uploadResult.fileId && typeof drive.ensurePublicFileAccess === 'function') {
+      try {
+        publicMetadata = await drive.ensurePublicFileAccess({
+          fileId: uploadResult.fileId,
+          webViewLink: uploadResult.webViewLink || ''
+        });
+      } catch (error) {
+        console.warn('No se ha podido asegurar el acceso público al archivo de Google Drive.', error);
+        warning = {
+          type: 'warning',
+          message:
+            'El certificado se ha guardado en Google Drive, pero no se ha podido actualizar el enlace público automáticamente. Revisa los permisos del archivo antes de compartirlo.'
+        };
+      }
+    }
+
+    const downloadLink =
+      (publicMetadata && publicMetadata.downloadLink) ||
+      (uploadResult && uploadResult.fileId && typeof drive.buildPublicDownloadLink === 'function'
+        ? drive.buildPublicDownloadLink(uploadResult.fileId)
+        : '');
+    const publicLink =
+      (publicMetadata && publicMetadata.webViewLink) ||
+      (uploadResult && uploadResult.webViewLink) ||
+      downloadLink;
+
+    const metadata = {
+      driveFileId: (uploadResult && uploadResult.fileId) || '',
+      driveFileName: (uploadResult && uploadResult.fileName) || '',
+      driveFileUrl: warning ? '' : publicLink || '',
+      driveFileDownloadUrl: downloadLink || '',
+      driveClientFolderId: (uploadResult && uploadResult.clientFolderId) || '',
+      driveTrainingFolderId: (uploadResult && uploadResult.trainingFolderId) || '',
+      driveUploadedAt: new Date().toISOString()
+    };
+
+    Object.assign(row, metadata);
+    persistRows();
+
+    return { metadata, warning };
+  }
+
+  function resolveGoogleGmailIntegration() {
+    const gmail = window.googleGmail;
+    if (!gmail || typeof gmail.sendEmail !== 'function') {
+      return {
+        gmail: null,
+        error: {
+          type: 'danger',
+          message: 'La integración con Gmail no está disponible en esta página.'
+        }
+      };
+    }
+
+    if (typeof gmail.isConfigured === 'function' && !gmail.isConfigured()) {
+      return {
+        gmail: null,
+        error: {
+          type: 'danger',
+          message: 'Falta configurar la integración con Gmail.'
+        }
+      };
+    }
+
+    return { gmail };
+  }
+
+  function translateGmailError(error) {
+    if (!error) {
+      return 'No se ha podido enviar el correo. Inténtalo de nuevo.';
+    }
+
+    if (error.code === 'access_denied') {
+      return 'Se ha cancelado la autorización de Gmail.';
+    }
+
+    if (error instanceof TypeError) {
+      return 'No se ha podido conectar con Gmail. Comprueba tu conexión e inténtalo de nuevo.';
+    }
+
+    if (typeof error.status === 'number' && error.status === 401) {
+      return 'Gmail ha rechazado la autorización. Vuelve a iniciar sesión e inténtalo de nuevo.';
+    }
+
+    const message = normaliseTextValue(error.message);
+    if (message) {
+      return message;
+    }
+
+    return 'No se ha podido enviar el correo. Inténtalo de nuevo.';
   }
 
   function updateActionButtonsState() {
