@@ -267,42 +267,46 @@
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
           </div>
           <div class="modal-body">
-            <form id="email-form" class="vstack gap-3">
+            <form id="email-form" class="vstack gap-3" novalidate>
               <div id="email-status" class="alert d-none" role="alert"></div>
               <div>
                 <label for="email-to" class="form-label">Para</label>
                 <input
-                  type="email"
+                  type="text"
                   class="form-control"
                   id="email-to"
                   name="email-to"
                   placeholder="correo@empresa.com"
                   autocomplete="off"
-                  multiple
+                  inputmode="email"
+                  spellcheck="false"
                   required
                 />
               </div>
               <div>
                 <label for="email-cc" class="form-label">CC</label>
                 <input
-                  type="email"
+                  type="text"
                   class="form-control"
                   id="email-cc"
                   name="email-cc"
                   value="contabilidad@gepgroup.es"
-                  readonly
+                  autocomplete="off"
+                  inputmode="email"
+                  spellcheck="false"
                 />
               </div>
               <div>
                 <label for="email-bcc" class="form-label">CCO</label>
                 <input
-                  type="email"
+                  type="text"
                   class="form-control"
                   id="email-bcc"
                   name="email-bcc"
                   placeholder="Añade destinatarios en copia oculta"
                   autocomplete="off"
-                  multiple
+                  inputmode="email"
+                  spellcheck="false"
                 />
               </div>
               <div>

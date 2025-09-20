@@ -9,6 +9,9 @@
     'Isaac El Allaoui Algaba: Técnico Irata: 1/248469'
   ];
   const ACCOUNTING_EMAIL = 'contabilidad@gepgroup.es';
+  const EMAIL_SEPARATOR = ';';
+  const EMAIL_LIST_DELIMITER_PATTERN = /[;,]+/;
+  const EMAIL_VALIDATION_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const TRABAJOS_VERTICALES_KEY = 'trabajos verticales';
   const TABLE_COLUMNS = [
     { field: 'presupuesto', label: 'Presu', type: 'text', placeholder: 'ID del deal' },
@@ -1529,6 +1532,16 @@
     const toValue = normaliseEmailInput(elements.emailToInput ? elements.emailToInput.value : '');
     const ccValue = normaliseEmailInput(elements.emailCcInput ? elements.emailCcInput.value : '');
     const bccValue = normaliseEmailInput(elements.emailBccInput ? elements.emailBccInput.value : '');
+
+    if (elements.emailToInput) {
+      elements.emailToInput.value = toValue;
+    }
+    if (elements.emailCcInput) {
+      elements.emailCcInput.value = ccValue;
+    }
+    if (elements.emailBccInput) {
+      elements.emailBccInput.value = bccValue;
+    }
     const subjectValue =
       elements.emailSubjectInput && elements.emailSubjectInput.value
         ? elements.emailSubjectInput.value.trim()
@@ -1539,6 +1552,30 @@
       setEmailModalStatus('Introduce al menos un destinatario en el campo "Para".', 'warning');
       if (elements.emailToInput) {
         elements.emailToInput.focus();
+      }
+      return;
+    }
+
+    if (!hasValidEmailAddresses(toValue)) {
+      setEmailModalStatus('Revisa las direcciones de correo del campo "Para".', 'warning');
+      if (elements.emailToInput) {
+        elements.emailToInput.focus();
+      }
+      return;
+    }
+
+    if (!hasValidEmailAddresses(ccValue)) {
+      setEmailModalStatus('Revisa las direcciones de correo del campo "CC".', 'warning');
+      if (elements.emailCcInput) {
+        elements.emailCcInput.focus();
+      }
+      return;
+    }
+
+    if (!hasValidEmailAddresses(bccValue)) {
+      setEmailModalStatus('Revisa las direcciones de correo del campo "CCO".', 'warning');
+      if (elements.emailBccInput) {
+        elements.emailBccInput.focus();
       }
       return;
     }
@@ -1595,11 +1632,15 @@
 
     setEmailModalStatus('Enviando correo…', 'info');
 
+    const toForSending = formatEmailRecipientsForSending(toValue);
+    const ccForSending = formatEmailRecipientsForSending(ccValue);
+    const bccForSending = formatEmailRecipientsForSending(bccValue);
+
     try {
       await gmail.sendEmail({
-        to: toValue,
-        cc: ccValue || '',
-        bcc: bccValue || '',
+        to: toForSending,
+        cc: ccForSending || '',
+        bcc: bccForSending || '',
         subject: subjectValue,
         body: bodyValue
       });
@@ -1894,26 +1935,27 @@
       resetEmailModalState();
     });
 
-    const inputsToWatch = [emailToInput, emailBccInput, emailBodyInput];
-    inputsToWatch.forEach((input) => {
+    if (emailToInput) {
+      emailToInput.addEventListener('input', () => {
+        updateEmailSendButtonState();
+      });
+      emailToInput.addEventListener('blur', (event) => {
+        const normalised = normaliseEmailInput(event.target.value);
+        if (event.target.value !== normalised) {
+          event.target.value = normalised;
+        }
+        updateEmailSendButtonState();
+      });
+    }
+
+    [emailCcInput, emailBccInput].forEach((input) => {
       if (!input) {
         return;
       }
-      input.addEventListener('input', () => {
-        if (input === emailToInput) {
-          updateEmailSendButtonState();
-        }
+      input.addEventListener('blur', (event) => {
+        event.target.value = normaliseEmailInput(event.target.value);
       });
-      if (input !== emailBodyInput) {
-        input.addEventListener('blur', (event) => {
-          event.target.value = normaliseEmailInput(event.target.value);
-        });
-      }
     });
-
-    if (emailCcInput) {
-      emailCcInput.readOnly = true;
-    }
 
     updateEmailSendButtonState();
   }
@@ -1936,7 +1978,7 @@
     }
 
     if (elements.emailCcInput) {
-      elements.emailCcInput.value = ACCOUNTING_EMAIL;
+      elements.emailCcInput.value = normaliseEmailInput(ACCOUNTING_EMAIL);
     }
 
     setEmailModalStatus('');
@@ -1953,7 +1995,7 @@
     }
 
     if (elements.emailCcInput) {
-      elements.emailCcInput.value = ACCOUNTING_EMAIL;
+      elements.emailCcInput.value = normaliseEmailInput(ACCOUNTING_EMAIL);
     }
 
     if (elements.emailBccInput) {
@@ -2042,18 +2084,43 @@
     emailSendButton.disabled = !hasRecipient;
   }
 
-  function normaliseEmailInput(value) {
+  function splitEmailRecipients(value) {
     const text = normaliseTextValue(value);
     if (!text) {
+      return [];
+    }
+
+    return text
+      .split(EMAIL_LIST_DELIMITER_PATTERN)
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0);
+  }
+
+  function normaliseEmailInput(value) {
+    const recipients = splitEmailRecipients(value);
+    if (!recipients.length) {
       return '';
     }
 
-    const parts = text
-      .split(/[,;]+/)
-      .map((part) => part.trim())
-      .filter((part) => part.length > 0);
+    return recipients.join(`${EMAIL_SEPARATOR} `);
+  }
 
-    return parts.join(', ');
+  function hasValidEmailAddresses(value) {
+    const recipients = splitEmailRecipients(value);
+    if (!recipients.length) {
+      return true;
+    }
+
+    return recipients.every((recipient) => EMAIL_VALIDATION_PATTERN.test(recipient));
+  }
+
+  function formatEmailRecipientsForSending(value) {
+    const recipients = splitEmailRecipients(value);
+    if (!recipients.length) {
+      return '';
+    }
+
+    return recipients.join(', ');
   }
 
   function buildEmailSubject(row) {
@@ -2143,13 +2210,38 @@ Descargar certificado: ${normalisedLink}`.trim();
       };
     }
 
-    if (row.driveFileUrl) {
+    const rawDriveFileUrl = row.driveFileUrl === undefined || row.driveFileUrl === null ? '' : String(row.driveFileUrl);
+    const rawDriveFileDownloadUrl =
+      row.driveFileDownloadUrl === undefined || row.driveFileDownloadUrl === null
+        ? ''
+        : String(row.driveFileDownloadUrl);
+    const rawDriveFileId = row.driveFileId === undefined || row.driveFileId === null ? '' : String(row.driveFileId);
+
+    const normalisedDriveFileUrl = normaliseTextValue(rawDriveFileUrl);
+    const normalisedDriveFileDownloadUrl = normaliseTextValue(rawDriveFileDownloadUrl);
+    const normalisedDriveFileId = normaliseTextValue(rawDriveFileId);
+
+    const metadataChanged =
+      normalisedDriveFileUrl !== rawDriveFileUrl ||
+      normalisedDriveFileDownloadUrl !== rawDriveFileDownloadUrl ||
+      normalisedDriveFileId !== rawDriveFileId;
+
+    if (metadataChanged) {
+      Object.assign(row, {
+        driveFileUrl: normalisedDriveFileUrl,
+        driveFileDownloadUrl: normalisedDriveFileDownloadUrl,
+        driveFileId: normalisedDriveFileId
+      });
+      persistRows();
+    }
+
+    if (normalisedDriveFileUrl) {
       return {
-        link: row.driveFileUrl,
+        link: normalisedDriveFileUrl,
         metadata: {
-          driveFileUrl: row.driveFileUrl,
-          driveFileDownloadUrl: row.driveFileDownloadUrl || '',
-          driveFileId: row.driveFileId || ''
+          driveFileUrl: normalisedDriveFileUrl,
+          driveFileDownloadUrl: normalisedDriveFileDownloadUrl,
+          driveFileId: normalisedDriveFileId || ''
         },
         warning: null
       };
@@ -2157,6 +2249,18 @@ Descargar certificado: ${normalisedLink}`.trim();
 
     const { drive, error: driveError } = resolveGoogleDriveIntegration();
     if (!drive) {
+      if (normalisedDriveFileDownloadUrl) {
+        return {
+          link: normalisedDriveFileDownloadUrl,
+          metadata: {
+            driveFileUrl: '',
+            driveFileDownloadUrl: normalisedDriveFileDownloadUrl,
+            driveFileId: normalisedDriveFileId || ''
+          },
+          warning: null
+        };
+      }
+
       return {
         error:
           driveError || {
@@ -2166,18 +2270,18 @@ Descargar certificado: ${normalisedLink}`.trim();
       };
     }
 
-    if (!row.driveFileUrl && row.driveFileId && typeof drive.ensurePublicFileAccess === 'function') {
+    if (normalisedDriveFileId && typeof drive.ensurePublicFileAccess === 'function') {
       try {
         const shared = await drive.ensurePublicFileAccess({
-          fileId: row.driveFileId,
-          webViewLink: row.driveFileUrl || ''
+          fileId: normalisedDriveFileId,
+          webViewLink: normalisedDriveFileUrl || ''
         });
         const link = shared?.webViewLink || shared?.downloadLink || '';
         if (link) {
           const metadata = {
             driveFileUrl: shared.webViewLink || link,
-            driveFileDownloadUrl: shared.downloadLink || '',
-            driveFileId: row.driveFileId
+            driveFileDownloadUrl: shared.downloadLink || normalisedDriveFileDownloadUrl || '',
+            driveFileId: normalisedDriveFileId
           };
           Object.assign(row, metadata);
           persistRows();
