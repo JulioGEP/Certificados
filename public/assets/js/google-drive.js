@@ -467,6 +467,71 @@
     };
   }
 
+  async function ensurePublicFileAccess({ fileId, webViewLink }) {
+    if (!fileId) {
+      throw new Error('Falta el identificador del archivo de Google Drive.');
+    }
+
+    const encodedId = encodeURIComponent(fileId);
+    const detailsParams = new URLSearchParams({
+      fields: 'id,name,permissions(type,role,allowFileDiscovery),webViewLink,webContentLink',
+      supportsAllDrives: 'true'
+    });
+
+    const current = await driveRequest(`/files/${encodedId}?${detailsParams.toString()}`, { method: 'GET' });
+    const permissions = Array.isArray(current?.permissions) ? current.permissions : [];
+    const hasAnyoneReader = permissions.some(
+      (permission) => permission && permission.type === 'anyone' && permission.role === 'reader'
+    );
+
+    if (!hasAnyoneReader) {
+      const permissionParams = new URLSearchParams({
+        supportsAllDrives: 'true',
+        sendNotificationEmail: 'false'
+      });
+
+      await driveRequest(`/files/${encodedId}/permissions?${permissionParams.toString()}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8'
+        },
+        body: JSON.stringify({
+          type: 'anyone',
+          role: 'reader',
+          allowFileDiscovery: false
+        })
+      });
+
+      const refreshParams = new URLSearchParams({
+        fields: 'id,webViewLink,webContentLink',
+        supportsAllDrives: 'true'
+      });
+
+      const refreshed = await driveRequest(`/files/${encodedId}?${refreshParams.toString()}`, {
+        method: 'GET'
+      });
+
+      return {
+        fileId,
+        webViewLink: refreshed?.webViewLink || webViewLink || buildPublicDownloadLink(fileId),
+        downloadLink: refreshed?.webContentLink || buildPublicDownloadLink(fileId)
+      };
+    }
+
+    return {
+      fileId,
+      webViewLink: current?.webViewLink || webViewLink || buildPublicDownloadLink(fileId),
+      downloadLink: current?.webContentLink || buildPublicDownloadLink(fileId)
+    };
+  }
+
+  function buildPublicDownloadLink(fileId) {
+    if (!fileId) {
+      return '';
+    }
+    return `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`;
+  }
+
   function resetToken() {
     clearStoredToken();
   }
@@ -484,6 +549,8 @@
     ensureAccessToken,
     hasValidToken,
     uploadCertificate,
+    ensurePublicFileAccess,
+    buildPublicDownloadLink,
     resetToken
   };
 })(window);

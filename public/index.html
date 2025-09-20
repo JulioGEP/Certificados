@@ -253,6 +253,77 @@
       </div>
     </div>
 
+    <div
+      class="modal fade"
+      id="email-modal"
+      tabindex="-1"
+      aria-labelledby="email-modal-label"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h1 class="modal-title fs-5" id="email-modal-label">Enviar certificado por correo</h1>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            <form id="email-form" class="vstack gap-3">
+              <div id="email-status" class="alert d-none" role="alert"></div>
+              <div>
+                <label for="email-to" class="form-label">Para</label>
+                <input
+                  type="email"
+                  class="form-control"
+                  id="email-to"
+                  name="email-to"
+                  placeholder="correo@empresa.com"
+                  autocomplete="off"
+                  multiple
+                  required
+                />
+              </div>
+              <div>
+                <label for="email-cc" class="form-label">CC</label>
+                <input
+                  type="email"
+                  class="form-control"
+                  id="email-cc"
+                  name="email-cc"
+                  value="contabilidad@gepgroup.es"
+                  readonly
+                />
+              </div>
+              <div>
+                <label for="email-bcc" class="form-label">CCO</label>
+                <input
+                  type="email"
+                  class="form-control"
+                  id="email-bcc"
+                  name="email-bcc"
+                  placeholder="Añade destinatarios en copia oculta"
+                  autocomplete="off"
+                  multiple
+                />
+              </div>
+              <div>
+                <label class="form-label" for="email-subject-preview">Asunto</label>
+                <p id="email-subject-preview" class="form-control-plaintext mb-0"></p>
+                <input type="hidden" id="email-subject" name="email-subject" />
+              </div>
+              <div>
+                <label for="email-body" class="form-label">Cuerpo</label>
+                <textarea class="form-control" id="email-body" name="email-body" rows="8" required></textarea>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" form="email-form" class="btn btn-primary" id="email-send-button">Enviar correo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script
       src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
       integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
@@ -265,8 +336,13 @@
         clientId: '236363806815-nlfr4ck0gs2krh4l1nn4b3l7l83offng.apps.googleusercontent.com',
         rootFolderId: '15FclFHgqFha76Y51OnzJxypxxvgI-Pr6'
       };
+
+      window.GOOGLE_GMAIL_CONFIG = {
+        clientId: '236363806815-nlfr4ck0gs2krh4l1nn4b3l7l83offng.apps.googleusercontent.com'
+      };
     </script>
     <script src="assets/js/google-drive.js" defer></script>
+    <script src="assets/js/google-gmail.js" defer></script>
     <script src="assets/js/training-templates.js" defer></script>
     <script src="assets/js/certificate-pdf.js" defer></script>
     <script src="assets/js/brand-assets.js" defer></script>
