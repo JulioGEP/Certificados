@@ -306,6 +306,76 @@ body {
   font-size: 1rem;
 }
 
+.document-upload-dropzone {
+  position: relative;
+  border: 2px dashed rgba(44, 92, 197, 0.35);
+  border-radius: var(--brand-radius);
+  padding: 2.5rem 1.5rem;
+  background-color: #ffffff;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.document-upload-dropzone:focus,
+.document-upload-dropzone:focus-visible {
+  outline: none;
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 0.25rem rgba(44, 92, 197, 0.15);
+}
+
+.document-upload-dropzone.is-dragover,
+.document-upload-dropzone.has-file {
+  border-color: var(--brand-primary);
+  background-color: rgba(44, 92, 197, 0.04);
+}
+
+.document-upload-dropzone.is-invalid {
+  border-color: #dc3545;
+  background-color: rgba(220, 53, 69, 0.04);
+}
+
+.document-upload-dropzone.is-uploading {
+  cursor: progress;
+  opacity: 0.75;
+}
+
+.document-upload-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+.document-upload-illustration {
+  width: 72px;
+  height: 72px;
+  margin-bottom: 0.5rem;
+}
+
+.document-upload-title {
+  font-weight: 600;
+  color: #1f274d;
+}
+
+.document-upload-subtitle {
+  color: #4f5b8f;
+}
+
+.document-upload-action {
+  pointer-events: none;
+}
+
+.document-upload-dropzone.has-file .document-upload-action,
+.document-upload-dropzone.has-file .document-upload-subtitle {
+  display: none;
+}
+
+.document-upload-selected-file {
+  word-break: break-word;
+}
+
 @media (max-width: 991.98px) {
   .card-body {
     padding: 2rem;
@@ -326,5 +396,16 @@ body {
   #students-table td[data-label='Fecha'] .form-control,
   #students-table td[data-label='2ª Fecha'] .form-control {
     min-width: 0;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .document-upload-dropzone {
+    padding: 2rem 1.25rem;
+  }
+
+  .document-upload-illustration {
+    width: 60px;
+    height: 60px;
   }
 }
