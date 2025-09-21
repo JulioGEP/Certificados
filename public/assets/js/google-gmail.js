@@ -184,6 +184,30 @@
     return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
   }
 
+  function encodeMimeWord(value) {
+    if (value === undefined || value === null) {
+      return '';
+    }
+
+    const stringValue = String(value);
+    if (!stringValue) {
+      return '';
+    }
+
+    if (/^[\x00-\x7F]*$/.test(stringValue)) {
+      return stringValue;
+    }
+
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode(stringValue);
+    let binary = '';
+    bytes.forEach((byte) => {
+      binary += String.fromCharCode(byte);
+    });
+    const base64 = global.btoa(binary);
+    return `=?UTF-8?B?${base64}?=`;
+  }
+
   function buildEmailPayload({ to, cc, bcc, subject, body, from }) {
     const headers = [];
     if (from) {
@@ -200,7 +224,7 @@
     }
 
     const finalSubject = subject && String(subject).trim() ? String(subject).trim() : 'Certificado de formación';
-    headers.push(`Subject: ${finalSubject}`);
+    headers.push(`Subject: ${encodeMimeWord(finalSubject)}`);
     headers.push('MIME-Version: 1.0');
     headers.push('Content-Type: text/plain; charset="UTF-8"');
     headers.push('Content-Transfer-Encoding: 7bit');
