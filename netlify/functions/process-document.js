@@ -175,7 +175,7 @@ async function requestOpenAiExtraction(fileId, authorisationHeader) {
         role: 'system',
         content: [
           {
-            type: 'text',
+            type: 'input_text',
             text:
               'Eres un asistente que ayuda a un equipo de formación a extraer listados de alumnado. '
               + 'Cuando recibas un documento deberás identificar a todos los alumnos y alumnas, '
