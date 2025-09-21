@@ -204,6 +204,7 @@ async function requestOpenAiExtraction(fileId, authorisationHeader) {
     text: {
       format: {
         type: 'json_schema',
+        name: 'students_payload',
         json_schema: {
           name: 'students_payload',
           schema: {
