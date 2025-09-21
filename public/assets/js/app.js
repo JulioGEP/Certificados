@@ -38,6 +38,40 @@
     return lookup;
   }, new Map());
 
+  const DOCUMENT_UPLOAD_MAX_SIZE = 10 * 1024 * 1024;
+  const DOCUMENT_UPLOAD_SUPPORTED_MIME_TYPES = new Set([
+    'application/pdf',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.oasis.opendocument.spreadsheet',
+    'text/csv',
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+    'image/bmp',
+    'image/tiff',
+    'image/heic',
+    'image/heif'
+  ]);
+  const DOCUMENT_UPLOAD_SUPPORTED_EXTENSIONS = new Set([
+    'pdf',
+    'xls',
+    'xlsx',
+    'csv',
+    'ods',
+    'jpeg',
+    'jpg',
+    'png',
+    'webp',
+    'gif',
+    'bmp',
+    'tif',
+    'tiff',
+    'heic',
+    'heif'
+  ]);
+
   const CERTIFICATE_BUTTON_LABEL = 'PDF';
   const GENERATE_ALL_CERTIFICATES_LABEL = "Todos PDF's";
   const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -75,7 +109,18 @@
     emailSubjectPreview: document.getElementById('email-subject-preview'),
     emailStatus: document.getElementById('email-status'),
     emailBulkCounter: document.getElementById('email-bulk-counter'),
-    emailSendButton: document.getElementById('email-send-button')
+    emailSendButton: document.getElementById('email-send-button'),
+    uploadDocumentButton: document.getElementById('upload-document-button'),
+    uploadDocumentModal: document.getElementById('document-upload-modal'),
+    uploadDocumentForm: document.getElementById('document-upload-form'),
+    uploadDocumentBudgetInput: document.getElementById('document-upload-budget'),
+    uploadDocumentFileInput: document.getElementById('document-upload-file-input'),
+    uploadDocumentDropZone: document.getElementById('document-upload-dropzone'),
+    uploadDocumentFileName: document.getElementById('document-upload-file-name'),
+    uploadDocumentError: document.getElementById('document-upload-error'),
+    uploadDocumentSubmitButton: document.getElementById('document-upload-submit'),
+    uploadDocumentSubmitSpinner: document.getElementById('document-upload-submit-spinner'),
+    uploadDocumentSubmitLabel: document.getElementById('document-upload-submit-label')
   };
 
   const state = {
@@ -105,6 +150,13 @@
     bulkResults: []
   };
 
+  const documentUploadState = {
+    modalInstance: null,
+    selectedFile: null,
+    isUploading: false,
+    submitButtonDefaultLabel: ''
+  };
+
   document.addEventListener('DOMContentLoaded', () => {
     hydrateFromStorage();
     renderTable();
@@ -124,6 +176,7 @@
     }
     setupTemplateManagement();
     setupEmailModal();
+    setupDocumentUpload();
   }
 
   function setupTemplateManagement() {
@@ -2653,6 +2706,617 @@
     });
 
     updateEmailSendButtonState();
+  }
+
+  function setupDocumentUpload() {
+    const {
+      uploadDocumentButton,
+      uploadDocumentModal,
+      uploadDocumentForm,
+      uploadDocumentBudgetInput,
+      uploadDocumentFileInput,
+      uploadDocumentDropZone,
+      uploadDocumentSubmitButton,
+      uploadDocumentSubmitLabel
+    } = elements;
+
+    if (
+      !uploadDocumentButton ||
+      !uploadDocumentModal ||
+      !uploadDocumentForm ||
+      !uploadDocumentBudgetInput ||
+      !uploadDocumentFileInput ||
+      !uploadDocumentDropZone ||
+      !uploadDocumentSubmitButton
+    ) {
+      return;
+    }
+
+    const bootstrapModal = window.bootstrap && window.bootstrap.Modal ? window.bootstrap.Modal : null;
+    if (!bootstrapModal) {
+      console.warn('Bootstrap Modal no disponible para la carga de documentos.');
+      return;
+    }
+
+    if (!documentUploadState.modalInstance) {
+      documentUploadState.modalInstance = bootstrapModal.getOrCreateInstance(uploadDocumentModal);
+    }
+
+    documentUploadState.submitButtonDefaultLabel = uploadDocumentSubmitLabel
+      ? uploadDocumentSubmitLabel.textContent || 'Procesar documento'
+      : 'Procesar documento';
+
+    uploadDocumentButton.addEventListener('click', openDocumentUploadModal);
+    uploadDocumentForm.addEventListener('submit', handleDocumentUploadFormSubmit);
+
+    uploadDocumentModal.addEventListener('hidden.bs.modal', () => {
+      resetDocumentUploadState({ preserveBudget: true });
+    });
+
+    uploadDocumentFileInput.addEventListener('change', () => {
+      if (documentUploadState.isUploading) {
+        uploadDocumentFileInput.value = '';
+        return;
+      }
+
+      const files = uploadDocumentFileInput.files ? Array.from(uploadDocumentFileInput.files) : [];
+      if (files.length) {
+        handleDocumentUploadFileSelected(files[0]);
+      } else {
+        clearDocumentUploadSelection();
+      }
+    });
+
+    setupDocumentUploadDropZone();
+  }
+
+  function setupDocumentUploadDropZone() {
+    const { uploadDocumentDropZone, uploadDocumentFileInput } = elements;
+    if (!uploadDocumentDropZone || !uploadDocumentFileInput) {
+      return;
+    }
+
+    uploadDocumentDropZone.addEventListener('click', () => {
+      if (documentUploadState.isUploading) {
+        return;
+      }
+      uploadDocumentFileInput.click();
+    });
+
+    uploadDocumentDropZone.addEventListener('keydown', (event) => {
+      if (documentUploadState.isUploading) {
+        return;
+      }
+
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        uploadDocumentFileInput.click();
+      }
+    });
+
+    ['dragenter', 'dragover'].forEach((eventName) => {
+      uploadDocumentDropZone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (documentUploadState.isUploading) {
+          return;
+        }
+
+        uploadDocumentDropZone.classList.add('is-dragover');
+      });
+    });
+
+    ['dragleave', 'dragend'].forEach((eventName) => {
+      uploadDocumentDropZone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        uploadDocumentDropZone.classList.remove('is-dragover');
+      });
+    });
+
+    uploadDocumentDropZone.addEventListener('drop', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      uploadDocumentDropZone.classList.remove('is-dragover');
+
+      if (documentUploadState.isUploading) {
+        return;
+      }
+
+      const files = event.dataTransfer && event.dataTransfer.files ? Array.from(event.dataTransfer.files) : [];
+      if (files.length) {
+        handleDocumentUploadFileSelected(files[0]);
+      }
+    });
+  }
+
+  function openDocumentUploadModal() {
+    if (!documentUploadState.modalInstance) {
+      return;
+    }
+
+    resetDocumentUploadState();
+    prefillDocumentUploadBudget();
+    documentUploadState.modalInstance.show();
+
+    if (elements.uploadDocumentBudgetInput) {
+      window.setTimeout(() => {
+        elements.uploadDocumentBudgetInput.focus();
+        elements.uploadDocumentBudgetInput.select();
+      }, 150);
+    }
+  }
+
+  function prefillDocumentUploadBudget() {
+    if (!elements.uploadDocumentBudgetInput) {
+      return;
+    }
+
+    const suggestion = getSuggestedBudgetId();
+    elements.uploadDocumentBudgetInput.value = suggestion;
+  }
+
+  function resetDocumentUploadState({ preserveBudget = false } = {}) {
+    const {
+      uploadDocumentForm,
+      uploadDocumentBudgetInput,
+      uploadDocumentFileInput,
+      uploadDocumentDropZone,
+      uploadDocumentFileName
+    } = elements;
+
+    const budgetValue = preserveBudget && uploadDocumentBudgetInput ? uploadDocumentBudgetInput.value : '';
+
+    if (uploadDocumentForm) {
+      uploadDocumentForm.reset();
+    }
+
+    if (uploadDocumentBudgetInput && preserveBudget) {
+      uploadDocumentBudgetInput.value = budgetValue;
+    }
+
+    if (uploadDocumentFileInput) {
+      uploadDocumentFileInput.value = '';
+      uploadDocumentFileInput.disabled = false;
+    }
+
+    documentUploadState.selectedFile = null;
+    documentUploadState.isUploading = false;
+
+    if (uploadDocumentDropZone) {
+      uploadDocumentDropZone.classList.remove('is-dragover', 'has-file', 'is-uploading');
+      uploadDocumentDropZone.removeAttribute('aria-busy');
+    }
+
+    if (uploadDocumentFileName) {
+      uploadDocumentFileName.textContent = '';
+      uploadDocumentFileName.classList.add('d-none');
+    }
+
+    setDocumentUploadError('');
+    setDocumentUploadLoading(false);
+  }
+
+  function handleDocumentUploadFileSelected(file) {
+    if (!file) {
+      clearDocumentUploadSelection();
+      return;
+    }
+
+    const errorMessage = validateDocumentUploadFile(file);
+    if (errorMessage) {
+      clearDocumentUploadSelection();
+      setDocumentUploadError(errorMessage);
+      return;
+    }
+
+    documentUploadState.selectedFile = file;
+    setDocumentUploadError('');
+    updateDocumentUploadFileDetails();
+  }
+
+  function clearDocumentUploadSelection() {
+    const { uploadDocumentFileInput, uploadDocumentDropZone, uploadDocumentFileName } = elements;
+    documentUploadState.selectedFile = null;
+
+    if (uploadDocumentFileInput) {
+      uploadDocumentFileInput.value = '';
+    }
+
+    if (uploadDocumentDropZone) {
+      uploadDocumentDropZone.classList.remove('has-file');
+    }
+
+    if (uploadDocumentFileName) {
+      uploadDocumentFileName.textContent = '';
+      uploadDocumentFileName.classList.add('d-none');
+    }
+  }
+
+  function validateDocumentUploadFile(file) {
+    if (!file) {
+      return 'Selecciona un archivo para continuar.';
+    }
+
+    if (file.size > DOCUMENT_UPLOAD_MAX_SIZE) {
+      return `El archivo supera el tamaño máximo permitido de ${formatBytes(DOCUMENT_UPLOAD_MAX_SIZE)}.`;
+    }
+
+    if (!isSupportedDocumentUploadType(file)) {
+      return 'El tipo de archivo no es compatible. Usa un PDF, un Excel o una imagen.';
+    }
+
+    return '';
+  }
+
+  function isSupportedDocumentUploadType(file) {
+    if (!file) {
+      return false;
+    }
+
+    const mimeType = file.type ? String(file.type).toLowerCase() : '';
+    if (mimeType && DOCUMENT_UPLOAD_SUPPORTED_MIME_TYPES.has(mimeType)) {
+      return true;
+    }
+
+    const extension = extractFileExtension(file.name);
+    if (!extension) {
+      return false;
+    }
+
+    return DOCUMENT_UPLOAD_SUPPORTED_EXTENSIONS.has(extension);
+  }
+
+  function extractFileExtension(fileName) {
+    if (!fileName) {
+      return '';
+    }
+
+    const normalised = String(fileName).toLowerCase().trim();
+    const dotIndex = normalised.lastIndexOf('.');
+    if (dotIndex === -1 || dotIndex === normalised.length - 1) {
+      return '';
+    }
+
+    return normalised.slice(dotIndex + 1);
+  }
+
+  async function handleDocumentUploadFormSubmit(event) {
+    event.preventDefault();
+
+    if (documentUploadState.isUploading) {
+      return;
+    }
+
+    const budgetValue = elements.uploadDocumentBudgetInput ? elements.uploadDocumentBudgetInput.value.trim() : '';
+    if (!budgetValue) {
+      setDocumentUploadError('Introduce el número de presupuesto que quieres utilizar.');
+      if (elements.uploadDocumentBudgetInput) {
+        elements.uploadDocumentBudgetInput.focus();
+      }
+      return;
+    }
+
+    const file = documentUploadState.selectedFile;
+    const validationMessage = validateDocumentUploadFile(file);
+    if (validationMessage) {
+      setDocumentUploadError(validationMessage);
+      return;
+    }
+
+    try {
+      setDocumentUploadError('');
+      setDocumentUploadLoading(true);
+
+      const fileData = await readFileAsBase64(file);
+      const response = await fetch('/.netlify/functions/process-document', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          budgetId: budgetValue,
+          fileName: file.name,
+          fileType: file.type || '',
+          fileSize: file.size,
+          fileData
+        })
+      });
+
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload || payload.success === false) {
+        const message =
+          (payload && payload.message) || 'No se ha podido procesar el documento. Inténtalo de nuevo en unos minutos.';
+        throw new Error(message);
+      }
+
+      const extractedStudents = Array.isArray(payload.data?.students) ? payload.data.students : [];
+      const warnings = Array.isArray(payload.data?.warnings) ? payload.data.warnings : [];
+
+      const normalisedStudents = normaliseExtractedStudents(extractedStudents);
+      if (!normalisedStudents.length) {
+        setDocumentUploadError('No hemos encontrado alumnado válido en el documento.');
+        return;
+      }
+
+      let budgetData = null;
+      try {
+        budgetData = await fetchBudgetData(budgetValue);
+      } catch (error) {
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : 'No se ha podido recuperar la información del presupuesto indicado.';
+        setDocumentUploadError(message);
+        showAlert('danger', message);
+        return;
+      }
+
+      const filteredStudents = filterDocumentStudentsForBudget(budgetValue, normalisedStudents);
+      if (!filteredStudents.length) {
+        const message =
+          'Todas las personas del documento ya estaban en el listado para este presupuesto. No se han añadido nuevas filas.';
+        setDocumentUploadError(message);
+        showAlert('info', message);
+        return;
+      }
+
+      const mappedStudents = filteredStudents.map((student) => ({
+        name: student.nombre,
+        surname: student.apellido,
+        document: student.dni
+      }));
+
+      addDealToTable(budgetValue, { ...budgetData, students: mappedStudents });
+
+      const successMessage =
+        filteredStudents.length === 1
+          ? `Se ha añadido 1 alumno o alumna al presupuesto ${budgetValue}.`
+          : `Se han añadido ${filteredStudents.length} alumn@s al presupuesto ${budgetValue}.`;
+      showAlert('success', successMessage);
+
+      if (warnings.length) {
+        warnings.forEach((warning) => {
+          if (warning) {
+            showAlert('warning', warning);
+          }
+        });
+      }
+
+      if (documentUploadState.modalInstance) {
+        documentUploadState.modalInstance.hide();
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Ha ocurrido un error al procesar el documento. Inténtalo de nuevo.';
+      setDocumentUploadError(message);
+    } finally {
+      setDocumentUploadLoading(false);
+    }
+  }
+
+  function setDocumentUploadLoading(isLoading) {
+    const {
+      uploadDocumentSubmitButton,
+      uploadDocumentSubmitSpinner,
+      uploadDocumentSubmitLabel,
+      uploadDocumentBudgetInput,
+      uploadDocumentFileInput,
+      uploadDocumentDropZone
+    } = elements;
+
+    documentUploadState.isUploading = Boolean(isLoading);
+
+    if (uploadDocumentSubmitButton) {
+      uploadDocumentSubmitButton.disabled = Boolean(isLoading);
+    }
+
+    if (uploadDocumentSubmitSpinner) {
+      uploadDocumentSubmitSpinner.classList.toggle('d-none', !isLoading);
+    }
+
+    if (uploadDocumentSubmitLabel) {
+      uploadDocumentSubmitLabel.textContent = isLoading
+        ? 'Procesando…'
+        : documentUploadState.submitButtonDefaultLabel || 'Procesar documento';
+    }
+
+    if (uploadDocumentBudgetInput) {
+      uploadDocumentBudgetInput.disabled = Boolean(isLoading);
+    }
+
+    if (uploadDocumentFileInput) {
+      uploadDocumentFileInput.disabled = Boolean(isLoading);
+    }
+
+    if (uploadDocumentDropZone) {
+      if (isLoading) {
+        uploadDocumentDropZone.setAttribute('aria-busy', 'true');
+        uploadDocumentDropZone.classList.add('is-uploading');
+      } else {
+        uploadDocumentDropZone.removeAttribute('aria-busy');
+        uploadDocumentDropZone.classList.remove('is-uploading');
+      }
+    }
+  }
+
+  function setDocumentUploadError(message) {
+    const { uploadDocumentError, uploadDocumentDropZone } = elements;
+    const text = message ? String(message).trim() : '';
+
+    if (uploadDocumentError) {
+      if (text) {
+        uploadDocumentError.textContent = text;
+        uploadDocumentError.classList.remove('d-none');
+      } else {
+        uploadDocumentError.textContent = '';
+        uploadDocumentError.classList.add('d-none');
+      }
+    }
+
+    if (uploadDocumentDropZone) {
+      if (text) {
+        uploadDocumentDropZone.classList.add('is-invalid');
+      } else {
+        uploadDocumentDropZone.classList.remove('is-invalid');
+      }
+    }
+  }
+
+  function updateDocumentUploadFileDetails() {
+    const { uploadDocumentDropZone, uploadDocumentFileName } = elements;
+    const file = documentUploadState.selectedFile;
+
+    if (uploadDocumentDropZone) {
+      uploadDocumentDropZone.classList.toggle('has-file', Boolean(file));
+    }
+
+    if (uploadDocumentFileName) {
+      if (file) {
+        uploadDocumentFileName.textContent = `${file.name} (${formatBytes(file.size)})`;
+        uploadDocumentFileName.classList.remove('d-none');
+      } else {
+        uploadDocumentFileName.textContent = '';
+        uploadDocumentFileName.classList.add('d-none');
+      }
+    }
+  }
+
+  function normaliseExtractedStudents(students) {
+    if (!Array.isArray(students)) {
+      return [];
+    }
+
+    return students
+      .map((student) => ({
+        nombre: normaliseTextValue(student?.nombre),
+        apellido: normaliseTextValue(student?.apellido),
+        dni: normaliseDocumentValue(student?.dni)
+      }))
+      .filter((student) => student.nombre || student.apellido || student.dni);
+  }
+
+  function filterDocumentStudentsForBudget(budgetId, students) {
+    if (!Array.isArray(students) || !students.length) {
+      return [];
+    }
+
+    const normalisedBudgetId = normaliseDealId(budgetId);
+    if (!normalisedBudgetId) {
+      return students.slice();
+    }
+
+    const existingDocuments = new Set();
+
+    state.rows.forEach((row) => {
+      if (normaliseDealId(row.presupuesto) === normalisedBudgetId) {
+        const documentValue = normaliseDocumentValue(row.dni);
+        if (documentValue) {
+          existingDocuments.add(documentValue);
+        }
+      }
+    });
+
+    return students.filter((student) => {
+      const documentValue = normaliseDocumentValue(student.dni);
+      if (!documentValue) {
+        return true;
+      }
+
+      if (existingDocuments.has(documentValue)) {
+        return false;
+      }
+
+      existingDocuments.add(documentValue);
+      return true;
+    });
+  }
+
+  function normaliseDocumentValue(value) {
+    if (value === undefined || value === null) {
+      return '';
+    }
+
+    return String(value)
+      .trim()
+      .toUpperCase();
+  }
+
+  function getSuggestedBudgetId() {
+    const budgetInput = elements.budgetInput;
+    if (budgetInput) {
+      const inputValue = budgetInput.value || '';
+      const normalisedInput = inputValue.trim();
+      if (normalisedInput) {
+        const parsedIds = getBudgetIdsFromInput(normalisedInput);
+        if (parsedIds.length) {
+          return parsedIds[0];
+        }
+        return normalisedInput;
+      }
+    }
+
+    for (let index = state.rows.length - 1; index >= 0; index -= 1) {
+      const budgetId = state.rows[index] && state.rows[index].presupuesto ? String(state.rows[index].presupuesto).trim() : '';
+      if (budgetId) {
+        return budgetId;
+      }
+    }
+
+    return '';
+  }
+
+  function readFileAsBase64(file) {
+    return new Promise((resolve, reject) => {
+      if (!(file instanceof Blob)) {
+        reject(new Error('No se ha podido leer el archivo seleccionado.'));
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result;
+        if (typeof result !== 'string') {
+          reject(new Error('No se ha podido leer el archivo seleccionado.'));
+          return;
+        }
+
+        const marker = result.indexOf('base64,');
+        if (marker === -1) {
+          reject(new Error('No se ha podido interpretar el archivo seleccionado.'));
+          return;
+        }
+
+        resolve(result.slice(marker + 7));
+      };
+      reader.onerror = () => {
+        reject(new Error('No se ha podido leer el archivo seleccionado.'));
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function formatBytes(bytes) {
+    const size = Number(bytes) || 0;
+    if (!Number.isFinite(size) || size <= 0) {
+      return '0 B';
+    }
+
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let value = size;
+    let unitIndex = 0;
+
+    while (value >= 1024 && unitIndex < units.length - 1) {
+      value /= 1024;
+      unitIndex += 1;
+    }
+
+    const formatted = value >= 10 || unitIndex === 0 ? Math.round(value) : Math.round(value * 10) / 10;
+    return `${formatted} ${units[unitIndex]}`;
   }
 
   function resetEmailModalState() {

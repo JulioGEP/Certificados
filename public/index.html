@@ -77,15 +77,18 @@
           <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
             <h2 class="h4 mb-0">Listado de alumnos</h2>
             <div class="d-flex flex-wrap gap-2">
+              <button class="btn btn-success" type="button" id="add-manual-row">
+                Añadir fila
+              </button>
+              <button class="btn btn-outline-primary" type="button" id="upload-document-button">
+                Subir DOC
+              </button>
               <button
                 class="btn btn-outline-secondary"
                 type="button"
                 id="clear-storage"
               >
                 Vaciar listado
-              </button>
-              <button class="btn btn-success" type="button" id="add-manual-row">
-                Añadir fila
               </button>
               <button class="btn btn-primary" type="button" id="generate-all-certificates">
                 Todos PDF's
@@ -328,6 +331,121 @@
           <div class="modal-footer">
             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
             <button type="submit" form="email-form" class="btn btn-primary" id="email-send-button">Enviar correo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="modal fade"
+      id="document-upload-modal"
+      tabindex="-1"
+      aria-labelledby="document-upload-modal-label"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h1 class="modal-title fs-5" id="document-upload-modal-label">Subir documento de alumnado</h1>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            <form id="document-upload-form" class="vstack gap-4" novalidate>
+              <div>
+                <label for="document-upload-budget" class="form-label">Número de presupuesto</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="document-upload-budget"
+                  name="document-upload-budget"
+                  placeholder="Introduce el número de presupuesto"
+                  autocomplete="off"
+                  required
+                />
+                <div class="form-text">Utilizaremos este presupuesto para completar la información de la formación.</div>
+              </div>
+
+              <div>
+                <label for="document-upload-file-input" class="form-label">Documento del alumnado</label>
+                <div class="document-upload-dropzone" id="document-upload-dropzone" role="button" tabindex="0">
+                  <div class="document-upload-placeholder">
+                    <svg
+                      class="document-upload-illustration"
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 64 64"
+                      aria-hidden="true"
+                      focusable="false"
+                    >
+                      <path
+                        fill="var(--brand-primary)"
+                        d="M40 4H16a4 4 0 0 0-4 4v48a4 4 0 0 0 4 4h32a4 4 0 0 0 4-4V20L40 4z"
+                        opacity="0.1"
+                      ></path>
+                      <path
+                        fill="var(--brand-primary)"
+                        d="M40 4H16a4 4 0 0 0-4 4v48a4 4 0 0 0 4 4h32a4 4 0 0 0 4-4V20z"
+                        opacity="0.08"
+                      ></path>
+                      <path
+                        fill="var(--brand-primary)"
+                        d="M40 4v12a4 4 0 0 0 4 4h12"
+                        opacity="0.2"
+                      ></path>
+                      <path
+                        fill="none"
+                        stroke="var(--brand-primary)"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M40 4H16a4 4 0 0 0-4 4v48a4 4 0 0 0 4 4h32a4 4 0 0 0 4-4V20z"
+                      ></path>
+                      <path
+                        fill="none"
+                        stroke="var(--brand-primary)"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M40 4v12a4 4 0 0 0 4 4h12"
+                      ></path>
+                      <path
+                        fill="none"
+                        stroke="var(--brand-primary)"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="m22 34 6 6 14-14"
+                      ></path>
+                    </svg>
+                    <p class="document-upload-title mb-1">Arrastra y suelta el documento aquí</p>
+                    <p class="document-upload-subtitle mb-3">Admite PDF, Excel o imagen (máx. 10&nbsp;MB)</p>
+                    <span class="document-upload-action btn btn-outline-primary btn-sm">Seleccionar archivo</span>
+                    <p class="document-upload-selected-file text-body-secondary small mb-0 d-none" id="document-upload-file-name"></p>
+                  </div>
+                  <input
+                    type="file"
+                    class="visually-hidden"
+                    id="document-upload-file-input"
+                    name="document-upload-file-input"
+                    accept=".pdf,.xls,.xlsx,.csv,.ods,image/*"
+                  />
+                </div>
+                <div class="form-text">Procesaremos el archivo con OpenAI para obtener los nombres y documentos del alumnado.</div>
+              </div>
+
+              <div id="document-upload-error" class="alert alert-danger d-none" role="alert"></div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" form="document-upload-form" class="btn btn-primary" id="document-upload-submit">
+              <span
+                class="spinner-border spinner-border-sm align-middle me-2 d-none"
+                id="document-upload-submit-spinner"
+                role="status"
+                aria-hidden="true"
+              ></span>
+              <span class="align-middle" id="document-upload-submit-label">Procesar documento</span>
+            </button>
           </div>
         </div>
       </div>
