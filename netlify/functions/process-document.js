@@ -227,7 +227,7 @@ async function requestOpenAiExtraction(fileId, authorisationHeader) {
               items: { type: 'string' }
             }
           },
-          required: ['students']
+          required: ['students', 'warnings']
         },
         strict: true
       }
