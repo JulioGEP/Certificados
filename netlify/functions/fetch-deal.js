@@ -51,14 +51,6 @@ exports.handler = async (event) => {
       });
     }
 
-    const pipelineId = extractEntityId(deal.pipeline_id);
-    if (pipelineId === null || Number(pipelineId) !== 3) {
-      return jsonResponse(400, {
-        success: false,
-        message: 'El presupuesto pedido no es de formación en abierto'
-      });
-    }
-
     const { primaryDate: trainingDate, secondaryDate: trainingSecondDate } = normaliseTrainingDates(
       deal[TRAINING_DATE_FIELD]
     );
