@@ -201,35 +201,37 @@ async function requestOpenAiExtraction(fileId, authorisationHeader) {
         ]
       }
     ],
-    response_format: {
-      type: 'json_schema',
-      json_schema: {
-        name: 'students_payload',
-        schema: {
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            students: {
-              type: 'array',
-              items: {
-                type: 'object',
-                additionalProperties: false,
-                properties: {
-                  nombre: { type: 'string', description: 'Nombre de pila del alumno o alumna.' },
-                  apellido: { type: 'string', description: 'Apellidos del alumno o alumna.' },
-                  dni: { type: 'string', description: 'Documento identificativo (DNI, NIE, etc.).' }
-                },
-                required: ['nombre', 'apellido', 'dni']
+    text: {
+      format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'students_payload',
+          schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              students: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: {
+                    nombre: { type: 'string', description: 'Nombre de pila del alumno o alumna.' },
+                    apellido: { type: 'string', description: 'Apellidos del alumno o alumna.' },
+                    dni: { type: 'string', description: 'Documento identificativo (DNI, NIE, etc.).' }
+                  },
+                  required: ['nombre', 'apellido', 'dni']
+                }
+              },
+              warnings: {
+                type: 'array',
+                items: { type: 'string' }
               }
             },
-            warnings: {
-              type: 'array',
-              items: { type: 'string' }
-            }
+            required: ['students']
           },
-          required: ['students']
-        },
-        strict: true
+          strict: true
+        }
       }
     }
   };
