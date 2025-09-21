@@ -205,34 +205,31 @@ async function requestOpenAiExtraction(fileId, authorisationHeader) {
       format: {
         type: 'json_schema',
         name: 'students_payload',
-        json_schema: {
-          name: 'students_payload',
-          schema: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {
-              students: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  additionalProperties: false,
-                  properties: {
-                    nombre: { type: 'string', description: 'Nombre de pila del alumno o alumna.' },
-                    apellido: { type: 'string', description: 'Apellidos del alumno o alumna.' },
-                    dni: { type: 'string', description: 'Documento identificativo (DNI, NIE, etc.).' }
-                  },
-                  required: ['nombre', 'apellido', 'dni']
-                }
-              },
-              warnings: {
-                type: 'array',
-                items: { type: 'string' }
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            students: {
+              type: 'array',
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  nombre: { type: 'string', description: 'Nombre de pila del alumno o alumna.' },
+                  apellido: { type: 'string', description: 'Apellidos del alumno o alumna.' },
+                  dni: { type: 'string', description: 'Documento identificativo (DNI, NIE, etc.).' }
+                },
+                required: ['nombre', 'apellido', 'dni']
               }
             },
-            required: ['students']
+            warnings: {
+              type: 'array',
+              items: { type: 'string' }
+            }
           },
-          strict: true
-        }
+          required: ['students']
+        },
+        strict: true
       }
     }
   };
