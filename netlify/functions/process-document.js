@@ -201,8 +201,8 @@ async function requestOpenAiExtraction(fileId, authorisationHeader) {
         ]
       }
     ],
-    text: {
-      format: 'json_schema',
+    response_format: {
+      type: 'json_schema',
       json_schema: {
         name: 'students_payload',
         schema: {
@@ -340,6 +340,13 @@ function extractResponseText(response) {
       }
       if (typeof block?.output_text === 'string') {
         return block.output_text;
+      }
+      if (block?.json && typeof block.json === 'object') {
+        try {
+          return JSON.stringify(block.json);
+        } catch (error) {
+          console.warn('No se ha podido serializar el JSON de la respuesta de OpenAI.', error);
+        }
       }
     }
   }
