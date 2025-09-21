@@ -147,7 +147,8 @@
     isBulkMode: false,
     bulkQueue: [],
     bulkCurrentIndex: -1,
-    bulkResults: []
+    bulkResults: [],
+    bulkCurrentData: null
   };
 
   const documentUploadState = {
@@ -1588,8 +1589,9 @@
       return;
     }
 
-    const { gmail, error: gmailError } = resolveGoogleGmailIntegration();
-    if (!gmail) {
+    const gmailResolution = resolveGoogleGmailIntegration();
+    if (!gmailResolution.gmail) {
+      const gmailError = gmailResolution.error;
       if (gmailError) {
         showAlert(gmailError.type || 'danger', gmailError.message);
       } else {
@@ -1609,13 +1611,32 @@
         '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
     }
 
+    try {
+      await startBulkEmailManualFlow(queue);
+    } catch (error) {
+      console.error('No se ha podido preparar el envío masivo de correos.', error);
+      showAlert('danger', 'No se ha podido preparar el envío masivo de correos. Inténtalo de nuevo.');
+    } finally {
+      if (triggerButton instanceof HTMLButtonElement) {
+        triggerButton.disabled = state.rows.length === 0;
+        triggerButton.innerHTML = originalHtml || '';
+        triggerButton.removeAttribute('aria-busy');
+      }
+      updateActionButtonsState();
+    }
+  }
+
+  async function startBulkEmailManualFlow(queue) {
     emailModalState.isBulkMode = true;
     emailModalState.bulkQueue = queue;
-    emailModalState.bulkCurrentIndex = -1;
     emailModalState.bulkResults = [];
+    emailModalState.bulkCurrentIndex = -1;
+    emailModalState.bulkCurrentData = null;
     emailModalState.currentRowIndex = -1;
+    emailModalState.isPreparingLink = false;
+
     setEmailModalStatus('');
-    setEmailBulkCounter(0, 0);
+    setEmailBulkCounter(0, queue.length);
     setEmailModalLoading(false);
     populateEmailModalFieldsForBulk({
       toValue: '',
@@ -1625,29 +1646,447 @@
       body: ''
     });
     updateEmailSendButtonState();
+
     emailModalState.modalInstance.show();
+    await advanceToNextBulkEmail(0);
+  }
+
+  async function advanceToNextBulkEmail(startIndex) {
+    if (!emailModalState.isBulkMode) {
+      return;
+    }
+
+    const queue = Array.isArray(emailModalState.bulkQueue) ? emailModalState.bulkQueue : [];
+    const total = queue.length;
+
+    emailModalState.bulkCurrentData = null;
+    emailModalState.isPreparingLink = true;
+    updateEmailSendButtonState();
+
+    for (let index = startIndex; index < total; index += 1) {
+      if (!emailModalState.isBulkMode) {
+        return;
+      }
+
+      const queueItem = queue[index];
+      const counterCurrent = index + 1;
+      setEmailBulkCounter(counterCurrent, total);
+
+      const preparingMessage =
+        total > 1 ? `(${counterCurrent}/${total}) Preparando correo…` : 'Preparando correo…';
+      setEmailModalStatus(preparingMessage, 'info');
+
+      const preparation = await prepareBulkQueueItem(queueItem, {
+        index,
+        total,
+        onStatus: (message, type = 'info') => {
+          if (!emailModalState.isBulkMode) {
+            return;
+          }
+          const prefixed = total > 1 && message ? `(${counterCurrent}/${total}) ${message}` : message;
+          setEmailModalStatus(prefixed || '', type);
+        }
+      });
+
+      if (!emailModalState.isBulkMode) {
+        return;
+      }
+
+      if (!preparation.success) {
+        const failureMessage = preparation.statusMessage || 'No se ha podido preparar el correo.';
+        const prefixedFailure =
+          total > 1 ? `(${counterCurrent}/${total}) ${failureMessage}` : failureMessage;
+        setEmailModalStatus(prefixedFailure, preparation.statusType || 'danger');
+        emailModalState.bulkResults.push({ ...preparation, queueItem });
+        const summaryMessage = buildBulkSummaryMessage(queueItem, failureMessage);
+        if (summaryMessage) {
+          showAlert(preparation.statusType || 'danger', summaryMessage);
+        }
+        await delay(600);
+        continue;
+      }
+
+      const { data, warnings } = preparation;
+      emailModalState.bulkCurrentIndex = index;
+      emailModalState.bulkCurrentData = {
+        queueItem,
+        toValue: data.toValue,
+        ccValue: data.ccValue,
+        bccValue: data.bccValue,
+        subject: data.subject,
+        body: data.body,
+        warnings,
+        studentEntries: data.studentEntries,
+        rowIndexes: data.rowIndexes,
+        contact: data.contact
+      };
+
+      populateEmailModalFieldsForBulk({
+        toValue: data.toValue,
+        ccValue: data.ccValue,
+        bccValue: data.bccValue,
+        subject: data.subject,
+        body: data.body
+      });
+
+      const readyMessage =
+        preparation.statusMessage ||
+        (warnings.length
+          ? 'Correo preparado con avisos. Revisa y envía manualmente.'
+          : 'Correo preparado. Revisa y envía manualmente.');
+      const prefixedReady = total > 1 ? `(${counterCurrent}/${total}) ${readyMessage}` : readyMessage;
+
+      emailModalState.isPreparingLink = false;
+      setEmailModalStatus(
+        prefixedReady,
+        preparation.statusType || (warnings.length ? 'warning' : 'success')
+      );
+      updateEmailSendButtonState();
+      return;
+    }
+
+    emailModalState.isPreparingLink = false;
+    updateEmailSendButtonState();
+    await finishBulkEmailFlow({ cancelled: false });
+  }
+
+  function buildBulkFailureResult(queueItem, message, type = 'danger', warnings = []) {
+    return {
+      success: false,
+      statusMessage: message,
+      statusType: type,
+      summaryMessage: buildBulkSummaryMessage(queueItem, message),
+      warnings
+    };
+  }
+
+  async function prepareBulkQueueItem(queueItem, { index, total, onStatus } = {}) {
+    if (!queueItem) {
+      return buildBulkFailureResult(null, 'No se ha encontrado la información del correo.', 'danger');
+    }
+
+    const rowIndexes = Array.isArray(queueItem.rowIndexes) ? queueItem.rowIndexes : [];
+    const rows = rowIndexes
+      .map((rowIndex) => ({ rowIndex, row: state.rows[rowIndex] }))
+      .filter((entry) => entry.row);
+
+    if (!rows.length) {
+      return buildBulkFailureResult(
+        queueItem,
+        'Los datos del presupuesto ya no están disponibles.',
+        'danger'
+      );
+    }
+
+    const contact = resolveGroupContact(queueItem);
+    const toValue = normaliseEmailInput(contact.contactEmail || '');
+
+    if (!toValue) {
+      return buildBulkFailureResult(queueItem, 'No hay correo de contacto definido.', 'warning');
+    }
+
+    if (!hasValidEmailAddresses(toValue)) {
+      return buildBulkFailureResult(queueItem, 'El correo de contacto tiene un formato no válido.', 'warning');
+    }
+
+    const ccValue = normaliseEmailInput(ACCOUNTING_EMAIL);
+    const bccValue = '';
+    const subject = buildEmailSubjectForRows(
+      rows.map((entry) => entry.row),
+      queueItem
+    );
+
+    const warningDetails = [];
+    const studentEntries = [];
+
+    for (let studentIndex = 0; studentIndex < rows.length; studentIndex += 1) {
+      const { rowIndex, row } = rows[studentIndex];
+      const studentName = buildStudentFullName(row) || `Alumno/a ${studentIndex + 1}`;
+
+      if (typeof onStatus === 'function') {
+        onStatus(`Preparando certificado · ${studentName}`, 'info');
+      }
+
+      const ensureResult = await ensureRowHasDriveFile(rowIndex, {
+        onStatusChange: (message, type) => {
+          if (typeof onStatus !== 'function') {
+            return;
+          }
+          if (!message) {
+            onStatus('', type);
+            return;
+          }
+          const contextualMessage = rows.length > 1 ? `${message} · ${studentName}` : message;
+          onStatus(contextualMessage, type);
+        }
+      });
+
+      if (ensureResult.error) {
+        const errorMessage = ensureResult.error.message || 'No se ha podido preparar el certificado.';
+        return buildBulkFailureResult(
+          queueItem,
+          errorMessage,
+          ensureResult.error.type || 'danger',
+          warningDetails
+        );
+      }
+
+      if (ensureResult.warning && ensureResult.warning.message) {
+        warningDetails.push({
+          message: ensureResult.warning.message,
+          type: ensureResult.warning.type || 'warning'
+        });
+      }
+
+      const link = ensureResult.link;
+      if (!link) {
+        return buildBulkFailureResult(
+          queueItem,
+          'No se ha podido obtener un enlace al certificado.',
+          'danger',
+          warningDetails
+        );
+      }
+
+      studentEntries.push({ rowIndex, row, link });
+    }
+
+    if (!studentEntries.length) {
+      return buildBulkFailureResult(
+        queueItem,
+        'No hay certificados disponibles para enviar.',
+        'danger',
+        warningDetails
+      );
+    }
+
+    let body = '';
+
+    if (studentEntries.length === 1) {
+      const singleRow = studentEntries[0].row;
+      const singleLink = studentEntries[0].link;
+      let emailBody = buildEmailBody(singleRow);
+      const ensuredBody = ensureEmailBodyHasLink(emailBody, singleLink);
+      if (ensuredBody.didUpdate) {
+        emailBody = ensuredBody.updatedBody;
+      }
+      body = emailBody;
+    } else {
+      body = buildMultiStudentEmailBody(studentEntries);
+    }
+
+    return {
+      success: true,
+      statusMessage:
+        studentEntries.length === 1
+          ? 'Certificado preparado. Revisa y envía manualmente.'
+          : 'Certificados preparados. Revisa y envía manualmente.',
+      statusType: warningDetails.length ? 'warning' : 'success',
+      summaryMessage: null,
+      warnings: warningDetails,
+      data: {
+        toValue,
+        ccValue,
+        bccValue,
+        subject,
+        body,
+        rowIndexes: studentEntries.map((entry) => entry.rowIndex),
+        studentEntries,
+        contact
+      }
+    };
+  }
+
+  async function finishBulkEmailFlow({ cancelled } = {}) {
+    const queue = Array.isArray(emailModalState.bulkQueue) ? emailModalState.bulkQueue : [];
+    const results = Array.isArray(emailModalState.bulkResults) ? emailModalState.bulkResults : [];
+
+    if (queue.length === 0) {
+      setEmailBulkCounter(0, 0);
+    } else {
+      setEmailBulkCounter(queue.length, queue.length);
+    }
+
+    if (cancelled) {
+      setEmailModalStatus('Proceso interrumpido.', 'warning');
+    } else if (!results.length) {
+      setEmailModalStatus('No hay correos para enviar.', 'warning');
+    } else {
+      const hasFailures = results.some((item) => item && item.success === false);
+      const hasWarnings = results.some(
+        (item) => item && Array.isArray(item.warnings) && item.warnings.length > 0
+      );
+
+      if (!hasFailures && !hasWarnings) {
+        setEmailModalStatus('Proceso completado.', 'success');
+      } else if (!hasFailures && hasWarnings) {
+        setEmailModalStatus('Proceso completado con avisos.', 'warning');
+      } else {
+        setEmailModalStatus('Proceso completado con incidencias.', 'warning');
+      }
+    }
+
+    emailModalState.isPreparingLink = false;
+    emailModalState.isBulkMode = false;
+    emailModalState.bulkCurrentIndex = -1;
+    emailModalState.bulkCurrentData = null;
+    emailModalState.bulkResults = results;
+    updateEmailSendButtonState();
+
+    const summary = summariseBulkEmailResults(results, queue, { cancelled });
+    if (summary && summary.autoClose && emailModalState.modalInstance) {
+      emailModalState.autoCloseTimeoutId = window.setTimeout(() => {
+        if (emailModalState.modalInstance) {
+          emailModalState.modalInstance.hide();
+        }
+      }, 1600);
+    }
+  }
+
+  async function handleBulkEmailFormSubmission() {
+    if (!emailModalState.isBulkMode) {
+      return;
+    }
+
+    const currentData = emailModalState.bulkCurrentData;
+    if (!currentData) {
+      setEmailModalStatus('No hay ningún correo pendiente para enviar.', 'warning');
+      return;
+    }
+
+    const toValue = normaliseEmailInput(elements.emailToInput ? elements.emailToInput.value : '');
+    const ccValue = normaliseEmailInput(elements.emailCcInput ? elements.emailCcInput.value : '');
+    const bccValue = normaliseEmailInput(elements.emailBccInput ? elements.emailBccInput.value : '');
+
+    if (elements.emailToInput) {
+      elements.emailToInput.value = toValue;
+    }
+    if (elements.emailCcInput) {
+      elements.emailCcInput.value = ccValue;
+    }
+    if (elements.emailBccInput) {
+      elements.emailBccInput.value = bccValue;
+    }
+
+    if (!toValue) {
+      setEmailModalStatus('Introduce al menos un destinatario en el campo "Para".', 'warning');
+      if (elements.emailToInput) {
+        elements.emailToInput.focus();
+      }
+      return;
+    }
+
+    if (!hasValidEmailAddresses(toValue)) {
+      setEmailModalStatus('Revisa las direcciones de correo del campo "Para".', 'warning');
+      if (elements.emailToInput) {
+        elements.emailToInput.focus();
+      }
+      return;
+    }
+
+    if (!hasValidEmailAddresses(ccValue)) {
+      setEmailModalStatus('Revisa las direcciones de correo del campo "CC".', 'warning');
+      if (elements.emailCcInput) {
+        elements.emailCcInput.focus();
+      }
+      return;
+    }
+
+    if (!hasValidEmailAddresses(bccValue)) {
+      setEmailModalStatus('Revisa las direcciones de correo del campo "CCO".', 'warning');
+      if (elements.emailBccInput) {
+        elements.emailBccInput.focus();
+      }
+      return;
+    }
+
+    const subjectValue =
+      elements.emailSubjectInput && elements.emailSubjectInput.value
+        ? elements.emailSubjectInput.value.trim()
+        : currentData.subject || '';
+
+    let bodyValue = elements.emailBodyInput ? elements.emailBodyInput.value : currentData.body || '';
+
+    if (currentData.studentEntries && currentData.studentEntries.length === 1) {
+      const singleLink = currentData.studentEntries[0]?.link || '';
+      const ensured = ensureEmailBodyHasLink(bodyValue, singleLink);
+      if (ensured.didUpdate) {
+        bodyValue = ensured.updatedBody;
+        if (elements.emailBodyInput) {
+          elements.emailBodyInput.value = bodyValue;
+        }
+      }
+    }
+
+    setEmailModalLoading(true);
+    setEmailModalStatus('Enviando correo…', 'info');
+
+    const { gmail, error: gmailError } = resolveGoogleGmailIntegration();
+    if (!gmail) {
+      if (gmailError) {
+        setEmailModalStatus(gmailError.message, gmailError.type || 'danger');
+      } else {
+        setEmailModalStatus('La integración con Gmail no está disponible.', 'danger');
+      }
+      setEmailModalLoading(false);
+      return;
+    }
 
     try {
-      const { results, cancelled } = await processBulkEmailQueue(queue, gmail);
-      const summary = summariseBulkEmailResults(results, queue, { cancelled });
-      if (summary && summary.autoClose && emailModalState.modalInstance) {
-        emailModalState.autoCloseTimeoutId = window.setTimeout(() => {
-          if (emailModalState.modalInstance) {
-            emailModalState.modalInstance.hide();
-          }
-        }, 1600);
-      }
+      await gmail.sendEmail({
+        to: formatEmailRecipientsForSending(toValue),
+        cc: formatEmailRecipientsForSending(ccValue),
+        bcc: formatEmailRecipientsForSending(bccValue),
+        subject: subjectValue,
+        body: bodyValue
+      });
     } catch (error) {
-      console.error('No se ha podido completar el envío masivo de correos.', error);
-      showAlert('danger', 'No se ha podido completar el envío masivo de correos. Inténtalo de nuevo.');
-    } finally {
-      if (triggerButton instanceof HTMLButtonElement) {
-        triggerButton.disabled = state.rows.length === 0;
-        triggerButton.innerHTML = originalHtml || '';
-        triggerButton.removeAttribute('aria-busy');
-      }
-      updateActionButtonsState();
+      console.error('No se ha podido enviar el correo masivo.', error);
+      setEmailModalStatus(translateGmailError(error), 'danger');
+      setEmailModalLoading(false);
+      return;
     }
+
+    const resultStatusType =
+      currentData.warnings && currentData.warnings.length ? 'warning' : 'success';
+
+    const result = {
+      success: true,
+      statusMessage: 'Correo enviado correctamente.',
+      statusType: resultStatusType,
+      summaryMessage: null,
+      warnings: currentData.warnings || []
+    };
+
+    const queueItem = currentData.queueItem;
+
+    emailModalState.bulkResults.push({ ...result, queueItem });
+
+    const queueRowIndexes = Array.isArray(queueItem.rowIndexes) ? queueItem.rowIndexes : [];
+    queueRowIndexes.forEach((rowIndex) => {
+      if (state.rows[rowIndex]) {
+        updateRowValue(rowIndex, 'correoContacto', toValue);
+      }
+    });
+
+    if (queueItem.dealId) {
+      const contactToStore = {
+        contactName: currentData.contact?.contactName || '',
+        contactEmail: toValue,
+        contactPersonId: currentData.contact?.contactPersonId || ''
+      };
+      storeDealContact(queueItem.dealId, contactToStore);
+    }
+
+    setEmailModalStatus('Correo enviado correctamente.', resultStatusType);
+    setEmailModalLoading(false);
+
+    const nextIndex = emailModalState.bulkCurrentIndex + 1;
+    emailModalState.bulkCurrentData = null;
+    emailModalState.bulkCurrentIndex = -1;
+
+    await delay(300);
+    await advanceToNextBulkEmail(nextIndex);
   }
 
   function buildBulkEmailQueue() {
@@ -1736,308 +2175,6 @@
     });
 
     return contact;
-  }
-
-  async function processBulkEmailQueue(queue, gmail) {
-    const total = Array.isArray(queue) ? queue.length : 0;
-    if (!total) {
-      return { results: [], cancelled: false };
-    }
-
-    const results = [];
-    let cancelled = false;
-
-    setEmailModalLoading(true);
-
-    for (let index = 0; index < total; index += 1) {
-      if (!emailModalState.isBulkMode) {
-        cancelled = true;
-        break;
-      }
-
-      const queueItem = queue[index];
-      emailModalState.bulkCurrentIndex = index;
-      setEmailBulkCounter(index + 1, total);
-
-      const preparingMessage = total > 1 ? `(${index + 1}/${total}) Preparando correo…` : 'Preparando correo…';
-      setEmailModalStatus(preparingMessage, 'info');
-
-      const result = await sendBulkEmailQueueItem(queueItem, {
-        gmail,
-        onStatus: (message, type) => {
-          if (!emailModalState.isBulkMode) {
-            return;
-          }
-          if (!message) {
-            setEmailModalStatus('', type);
-            return;
-          }
-          const prefix = total > 1 ? `(${index + 1}/${total}) ${message}` : message;
-          setEmailModalStatus(prefix, type);
-        }
-      });
-
-      results.push({ ...result, queueItem });
-
-      if (!emailModalState.isBulkMode) {
-        cancelled = true;
-        break;
-      }
-
-      const statusMessage =
-        result.statusMessage ||
-        (result.success ? 'Correo enviado correctamente.' : 'No se ha podido enviar el correo.');
-      const statusType = result.statusType || (result.success ? 'success' : 'danger');
-      const prefixedStatus = total > 1 ? `(${index + 1}/${total}) ${statusMessage}` : statusMessage;
-      setEmailModalStatus(prefixedStatus, statusType);
-
-      if (index < total - 1 && emailModalState.isBulkMode) {
-        await delay(600);
-      }
-    }
-
-    if (!cancelled) {
-      const hasFailures = results.some((item) => item && item.success === false);
-      const hasWarnings = results.some(
-        (item) => item && Array.isArray(item.warnings) && item.warnings.length > 0
-      );
-      setEmailBulkCounter(total, total);
-      if (!hasFailures && !hasWarnings) {
-        setEmailModalStatus('Proceso completado.', 'success');
-      } else if (!hasFailures && hasWarnings) {
-        setEmailModalStatus('Proceso completado con avisos.', 'warning');
-      } else {
-        setEmailModalStatus('Proceso completado con incidencias.', 'warning');
-      }
-    } else {
-      setEmailModalStatus('Proceso interrumpido.', 'warning');
-    }
-
-    emailModalState.isBulkMode = false;
-    emailModalState.bulkCurrentIndex = -1;
-    emailModalState.bulkResults = results;
-
-    setEmailModalLoading(false);
-
-    return { results, cancelled };
-  }
-
-  async function sendBulkEmailQueueItem(queueItem, { gmail, onStatus } = {}) {
-    if (!queueItem) {
-      const message = 'No se ha encontrado la información del correo.';
-      return {
-        success: false,
-        statusMessage: message,
-        statusType: 'danger',
-        summaryMessage: buildBulkSummaryMessage(null, message),
-        warnings: []
-      };
-    }
-
-    const rowIndexes = Array.isArray(queueItem.rowIndexes) ? queueItem.rowIndexes : [];
-    const rows = rowIndexes
-      .map((rowIndex) => ({ rowIndex, row: state.rows[rowIndex] }))
-      .filter((entry) => entry.row);
-
-    if (!rows.length) {
-      const message = 'Los datos del presupuesto ya no están disponibles.';
-      return {
-        success: false,
-        statusMessage: message,
-        statusType: 'danger',
-        summaryMessage: buildBulkSummaryMessage(queueItem, message),
-        warnings: []
-      };
-    }
-
-    const contact = resolveGroupContact(queueItem);
-    const toValue = normaliseEmailInput(contact.contactEmail || '');
-
-    if (!toValue) {
-      const message = 'No hay correo de contacto definido.';
-      return {
-        success: false,
-        statusMessage: message,
-        statusType: 'warning',
-        summaryMessage: buildBulkSummaryMessage(queueItem, message),
-        warnings: []
-      };
-    }
-
-    if (!hasValidEmailAddresses(toValue)) {
-      const message = 'El correo de contacto tiene un formato no válido.';
-      return {
-        success: false,
-        statusMessage: message,
-        statusType: 'warning',
-        summaryMessage: buildBulkSummaryMessage(queueItem, message),
-        warnings: []
-      };
-    }
-
-    const ccValue = normaliseEmailInput(ACCOUNTING_EMAIL);
-    const bccValue = '';
-    const subject = buildEmailSubjectForRows(
-      rows.map((entry) => entry.row),
-      queueItem
-    );
-    const warningDetails = [];
-
-    const studentEntries = [];
-
-    for (let index = 0; index < rows.length; index += 1) {
-      if (!emailModalState.isBulkMode) {
-        const message = 'Proceso interrumpido.';
-        return {
-          success: false,
-          statusMessage: message,
-          statusType: 'warning',
-          summaryMessage: buildBulkSummaryMessage(queueItem, message),
-          warnings: warningDetails
-        };
-      }
-
-      const { rowIndex, row } = rows[index];
-      const studentName = buildStudentFullName(row) || `Alumno/a ${index + 1}`;
-
-      if (typeof onStatus === 'function') {
-        onStatus(`Preparando certificado · ${studentName}`, 'info');
-      }
-
-      const ensureResult = await ensureRowHasDriveFile(rowIndex, {
-        onStatusChange: (message, type) => {
-          if (typeof onStatus !== 'function') {
-            return;
-          }
-          if (!message) {
-            onStatus('', type);
-            return;
-          }
-          const contextualMessage = rows.length > 1 ? `${message} · ${studentName}` : message;
-          onStatus(contextualMessage, type);
-        }
-      });
-
-      if (ensureResult.error) {
-        const message = ensureResult.error.message || 'No se ha podido preparar el certificado.';
-        return {
-          success: false,
-          statusMessage: message,
-          statusType: ensureResult.error.type || 'danger',
-          summaryMessage: buildBulkSummaryMessage(queueItem, message),
-          warnings: warningDetails
-        };
-      }
-
-      if (ensureResult.warning && ensureResult.warning.message) {
-        warningDetails.push({
-          message: ensureResult.warning.message,
-          type: ensureResult.warning.type || 'warning'
-        });
-      }
-
-      const link = ensureResult.link;
-      if (!link) {
-        const message = 'No se ha podido obtener un enlace al certificado.';
-        return {
-          success: false,
-          statusMessage: message,
-          statusType: 'danger',
-          summaryMessage: buildBulkSummaryMessage(queueItem, message),
-          warnings: warningDetails
-        };
-      }
-
-      studentEntries.push({
-        rowIndex,
-        row,
-        link
-      });
-    }
-
-    if (!studentEntries.length) {
-      const message = 'No hay certificados disponibles para enviar.';
-      return {
-        success: false,
-        statusMessage: message,
-        statusType: 'danger',
-        summaryMessage: buildBulkSummaryMessage(queueItem, message),
-        warnings: warningDetails
-      };
-    }
-
-    let body = '';
-    if (studentEntries.length === 1) {
-      const singleRow = studentEntries[0].row;
-      const singleLink = studentEntries[0].link;
-      let emailBody = buildEmailBody(singleRow);
-      const ensuredBody = ensureEmailBodyHasLink(emailBody, singleLink);
-      if (ensuredBody.didUpdate) {
-        emailBody = ensuredBody.updatedBody;
-      }
-      body = emailBody;
-    } else {
-      body = buildMultiStudentEmailBody(studentEntries);
-    }
-
-    populateEmailModalFieldsForBulk({
-      toValue,
-      ccValue,
-      bccValue,
-      subject,
-      body
-    });
-
-    if (typeof onStatus === 'function') {
-      onStatus('Enviando correo…', 'info');
-    }
-
-    try {
-      await gmail.sendEmail({
-        to: formatEmailRecipientsForSending(toValue),
-        cc: formatEmailRecipientsForSending(ccValue),
-        bcc: formatEmailRecipientsForSending(bccValue),
-        subject,
-        body
-      });
-    } catch (error) {
-      console.error('No se ha podido enviar el correo masivo.', error);
-      const message = translateGmailError(error);
-      return {
-        success: false,
-        statusMessage: message,
-        statusType: 'danger',
-        summaryMessage: buildBulkSummaryMessage(queueItem, message),
-        warnings: warningDetails
-      };
-    }
-
-    queueItem.rowIndexes.forEach((rowIndex) => {
-      if (state.rows[rowIndex]) {
-        updateRowValue(rowIndex, 'correoContacto', toValue);
-      }
-    });
-
-    if (queueItem.dealId) {
-      storeDealContact(queueItem.dealId, {
-        contactName: contact.contactName || '',
-        contactEmail: toValue,
-        contactPersonId: contact.contactPersonId || ''
-      });
-    }
-
-    const statusMessage = warningDetails.length
-      ? 'Correo enviado con advertencias.'
-      : 'Correo enviado correctamente.';
-    const statusType = warningDetails.length ? 'warning' : 'success';
-
-    return {
-      success: true,
-      statusMessage,
-      statusType,
-      summaryMessage: null,
-      warnings: warningDetails
-    };
   }
 
   function populateEmailModalFieldsForBulk({ toValue, ccValue, bccValue, subject, body }) {
@@ -2260,12 +2397,13 @@
       return;
     }
 
-    if (emailModalState.isBulkMode) {
+    if (emailModalState.isPreparingLink) {
+      setEmailModalStatus('Espera a que el certificado esté listo para enviar.', 'info');
       return;
     }
 
-    if (emailModalState.isPreparingLink) {
-      setEmailModalStatus('Espera a que el certificado esté listo para enviar.', 'info');
+    if (emailModalState.isBulkMode) {
+      await handleBulkEmailFormSubmission();
       return;
     }
 
@@ -3332,6 +3470,7 @@
     emailModalState.bulkQueue = [];
     emailModalState.bulkResults = [];
     emailModalState.bulkCurrentIndex = -1;
+    emailModalState.bulkCurrentData = null;
 
     if (elements.emailForm) {
       elements.emailForm.reset();
@@ -3528,7 +3667,12 @@
       return;
     }
 
-    if (emailModalState.isSending || emailModalState.isPreparingLink || emailModalState.isBulkMode) {
+    if (emailModalState.isSending || emailModalState.isPreparingLink) {
+      emailSendButton.disabled = true;
+      return;
+    }
+
+    if (emailModalState.isBulkMode && !emailModalState.bulkCurrentData) {
       emailSendButton.disabled = true;
       return;
     }
