@@ -531,8 +531,17 @@ function extractStudentsFromNotes(notes) {
     .split(';')
     .map((entry) => entry.trim())
     .filter(Boolean)
+    .filter((entry) => !shouldIgnoreNoteEntry(entry))
     .map((entry) => {
-      const rawParts = entry.split('|').map((part) => part.trim());
+      const sanitisedEntry = entry.replace(/\s+/g, ' ').trim();
+      if (!sanitisedEntry) {
+        return null;
+      }
+      if (shouldIgnoreNoteEntry(sanitisedEntry)) {
+        return null;
+      }
+
+      const rawParts = sanitisedEntry.split('|').map((part) => part.trim());
       const hasContent = rawParts.some((part) => part);
 
       if (!hasContent) {
@@ -541,14 +550,35 @@ function extractStudentsFromNotes(notes) {
 
       const [name = '', surname = '', document = ''] = rawParts;
 
+      const normalisedName = normalisePersonNameSegment(name);
+      if (!surname && !document && shouldIgnoreNoteEntry(normalisedName)) {
+        return null;
+      }
+
       return {
-        name: normalisePersonNameSegment(name),
+        name: normalisedName,
         surname: normalisePersonNameSegment(surname),
         document,
         documentType: detectDocumentType(document)
       };
     })
     .filter(Boolean);
+}
+
+function shouldIgnoreNoteEntry(entry) {
+  if (!entry) {
+    return false;
+  }
+
+  const normalised = String(entry).replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!normalised) {
+    return false;
+  }
+
+  return (
+    normalised.includes('presupuestos sin fecha asignada') &&
+    normalised.includes('datos actualizados desde pipedrive')
+  );
 }
 
 function normalisePersonNameSegment(value) {
