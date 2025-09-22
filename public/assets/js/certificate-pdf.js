@@ -365,19 +365,35 @@
     return [name, surname].filter(Boolean).join(' ').trim() || 'Nombre del alumno/a';
   }
 
-  function buildDocumentSentence(row) {
+  function buildDocumentSentenceFragments(row) {
     const documentType = normaliseText(row.documentType).toUpperCase();
     const documentNumber = normaliseText(row.dni);
+
     if (!documentType && !documentNumber) {
-      return 'con documento de identidad';
+      return [{ text: 'con documento de identidad' }];
     }
+
     if (!documentType) {
-      return `con documento ${documentNumber}`;
+      return [
+        { text: 'con documento ' },
+        { text: documentNumber, bold: true }
+      ];
     }
+
     if (!documentNumber) {
-      return `con ${documentType}`;
+      return [{ text: `con ${documentType}` }];
     }
-    return `con ${documentType} ${documentNumber}`;
+
+    return [
+      { text: `con ${documentType} ` },
+      { text: documentNumber, bold: true }
+    ];
+  }
+
+  function buildDocumentSentence(row) {
+    return buildDocumentSentenceFragments(row)
+      .map((fragment) => (fragment && typeof fragment.text === 'string' ? fragment.text : ''))
+      .join('');
   }
 
   function formatTrainingDate(value) {
@@ -688,7 +704,7 @@
       referencePageMargins[3]
     ];
     const fullName = buildFullName(row);
-    const documentSentence = buildDocumentSentence(row);
+    const documentSentenceFragments = buildDocumentSentenceFragments(row);
     const trainingDate = formatTrainingDateRange(row.fecha, row.segundaFecha);
     const location = formatLocation(row.lugar);
     const duration = formatDuration(row.duracion);
@@ -706,9 +722,18 @@
         style: 'introText'
       },
       { text: 'CERTIFICADO', style: 'certificateTitle' },
-      { text: `A nombre del alumno/a ${fullName}`, style: 'bodyText' },
       {
-        text: `${documentSentence}, quien en fecha ${trainingDate} y en ${location}`,
+        text: [
+          'A nombre del alumno/a ',
+          { text: fullName, bold: true }
+        ],
+        style: 'bodyText'
+      },
+      {
+        text: [
+          ...documentSentenceFragments,
+          { text: `, quien en fecha ${trainingDate} y en ${location}` }
+        ],
         style: 'bodyText'
       },
       {
