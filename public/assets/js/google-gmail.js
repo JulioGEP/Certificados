@@ -4,6 +4,12 @@
   const GOOGLE_IDENTITY_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
   const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
 
+  const STORAGE_PREFIX = 'certificados.gmail';
+  const STORAGE_KEYS = {
+    accessToken: (clientId) => `${STORAGE_PREFIX}.${clientId}.accessToken`,
+    tokenExpiresAt: (clientId) => `${STORAGE_PREFIX}.${clientId}.tokenExpiresAt`
+  };
+
   const config = {
     clientId: '',
     scope: GMAIL_SCOPE
@@ -16,18 +22,111 @@
     tokenExpiresAt: 0
   };
 
+  function getLocalStorage() {
+    try {
+      return global.localStorage || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function clearTokenFromStorage(clientId = config.clientId) {
+    if (!clientId) {
+      return;
+    }
+
+    const storage = getLocalStorage();
+    if (!storage) {
+      return;
+    }
+
+    try {
+      storage.removeItem(STORAGE_KEYS.accessToken(clientId));
+      storage.removeItem(STORAGE_KEYS.tokenExpiresAt(clientId));
+    } catch (error) {
+      // Ignoramos los errores de almacenamiento para no bloquear el flujo principal.
+    }
+  }
+
+  function persistTokenInStorage(clientId, token, expiresAt) {
+    if (!clientId || !token) {
+      return;
+    }
+
+    const storage = getLocalStorage();
+    if (!storage) {
+      return;
+    }
+
+    try {
+      storage.setItem(STORAGE_KEYS.accessToken(clientId), token);
+      storage.setItem(STORAGE_KEYS.tokenExpiresAt(clientId), String(expiresAt || 0));
+    } catch (error) {
+      // Si no podemos persistir el token seguimos funcionando con el estado en memoria.
+    }
+  }
+
+  function restoreTokenFromStorageIfNeeded() {
+    if (!config.clientId) {
+      return;
+    }
+
+    if (state.accessToken && state.tokenExpiresAt && hasValidToken()) {
+      return;
+    }
+
+    const storage = getLocalStorage();
+    if (!storage) {
+      return;
+    }
+
+    let storedAccessToken = null;
+    let storedExpiresAt = 0;
+
+    try {
+      storedAccessToken = storage.getItem(STORAGE_KEYS.accessToken(config.clientId));
+      const storedExpiresAtValue = storage.getItem(
+        STORAGE_KEYS.tokenExpiresAt(config.clientId)
+      );
+      storedExpiresAt = Number(storedExpiresAtValue);
+    } catch (error) {
+      storedAccessToken = null;
+      storedExpiresAt = 0;
+    }
+
+    if (!storedAccessToken || !Number.isFinite(storedExpiresAt)) {
+      clearTokenFromStorage(config.clientId);
+      return;
+    }
+
+    state.accessToken = storedAccessToken;
+    state.tokenExpiresAt = storedExpiresAt;
+  }
+
   function configure(options) {
     if (!options || typeof options !== 'object') {
       return;
     }
 
     if (typeof options.clientId === 'string') {
-      config.clientId = options.clientId.trim();
+      const nextClientId = options.clientId.trim();
+      if (nextClientId !== config.clientId) {
+        if (config.clientId) {
+          clearTokenFromStorage(config.clientId);
+        }
+        config.clientId = nextClientId;
+        state.accessToken = null;
+        state.tokenExpiresAt = 0;
+      } else {
+        config.clientId = nextClientId;
+      }
     }
 
     if (typeof options.scope === 'string' && options.scope.trim()) {
       config.scope = options.scope.trim();
     }
+
+    restoreTokenFromStorageIfNeeded();
   }
 
   function isConfigured() {
@@ -82,6 +181,7 @@
   function clearStoredToken() {
     state.accessToken = null;
     state.tokenExpiresAt = 0;
+    clearTokenFromStorage();
   }
 
   function normaliseExpiresIn(expiresIn) {
@@ -127,6 +227,7 @@
         state.accessToken = accessToken;
         const expiresInMs = normaliseExpiresIn(expiresIn);
         state.tokenExpiresAt = Date.now() + Math.max(0, expiresInMs);
+        persistTokenInStorage(config.clientId, state.accessToken, state.tokenExpiresAt);
         resolve(accessToken);
       };
 
@@ -148,6 +249,7 @@
     }
 
     await ensureIdentityServicesLoaded();
+    restoreTokenFromStorageIfNeeded();
 
     if (!state.tokenClient) {
       state.tokenClient = global.google.accounts.oauth2.initTokenClient({
