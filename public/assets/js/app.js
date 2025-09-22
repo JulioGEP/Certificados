@@ -8,7 +8,7 @@
     'Luís Vicent Pérez - Irata: 1/175398',
     'Isaac El Allaoui Algaba: Técnico Irata: 1/248469'
   ];
-  const ACCOUNTING_EMAIL = 'contabilidad@gepgroup.es';
+  const ACCOUNTING_EMAIL = 'administracion@gepgroup.es';
   const EMAIL_SEPARATOR = ';';
   const EMAIL_LIST_DELIMITER_PATTERN = /[;,]+/;
   const EMAIL_VALIDATION_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
